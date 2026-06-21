@@ -33,6 +33,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
+  bluez_native_comms:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: main
+      resolved-ref: e3cc3d74a372dfe14e7532bd81a90c1aad71fd92
+      url: "https://github.com/jwinarske/bluez_native.git"
+    source: git
+    version: "0.2.0"
   boolean_selector:
     dependency: transitive
     description:

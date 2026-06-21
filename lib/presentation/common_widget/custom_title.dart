@@ -26,17 +26,20 @@ class CommonTitle extends StatelessWidget {
               children: [
                 Container(
                   decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(28),
+                      ),
                       gradient: LinearGradient(
                           begin: Alignment.bottomCenter,
                           end: Alignment.center,
                           colors: [
-                        AGLDemoColors.jordyBlueColor.withOpacity(0.2),
-                        AGLDemoColors.jordyBlueColor.withOpacity(0)
-                      ],
+                            AGLDemoColors.jordyBlueColor.withValues(alpha: 0.2),
+                            AGLDemoColors.jordyBlueColor.withValues(alpha: 0)
+                          ],
                           stops: const [
-                        0.0,
-                        1
-                      ])),
+                            0.0,
+                            1
+                          ])),
                   alignment: Alignment.center,
                   child: Text(
                     title,
@@ -80,7 +83,7 @@ class CommonTitle extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   blurRadius: 6,
                   spreadRadius: 3,
                   offset: const Offset(0, 6),
@@ -93,7 +96,7 @@ class CommonTitle extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Colors.black, Colors.black.withOpacity(0.0)],
+              colors: [Colors.black, Colors.black.withValues(alpha: 0.0)],
             ),
           ),
         )

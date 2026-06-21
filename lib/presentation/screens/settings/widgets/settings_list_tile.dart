@@ -23,7 +23,8 @@ class SettingsTileState extends ConsumerState<SettingsTile> {
   Widget build(BuildContext context) {
     final signal = ref.watch(signalsProvider.select((signal) => signal));
     if (widget.title == 'Bluetooth') {
-      isSwitchOn = signal.isBluetoothConnected;
+      isSwitchOn = ref.watch(bluetoothPowerProvider).valueOrNull?.isPowered ??
+          signal.isBluetoothConnected;
     } else if (widget.title == 'Wifi') {
       isSwitchOn = signal.isWifiConnected;
     } else {
@@ -92,8 +93,9 @@ class SettingsTileState extends ConsumerState<SettingsTile> {
                                       switch (widget.title) {
                                         case 'Bluetooth':
                                           ref
-                                              .read(signalsProvider.notifier)
-                                              .toggleBluetooth();
+                                              .read(bluetoothPowerProvider
+                                                  .notifier)
+                                              .setPowered(value);
                                           break;
                                         case 'Wifi':
                                           ref
@@ -109,9 +111,8 @@ class SettingsTileState extends ConsumerState<SettingsTile> {
                                     },
                                     inactiveTrackColor: Colors.transparent,
                                     activeTrackColor: Colors.transparent,
-                                    thumbColor:
-                                        WidgetStateProperty.all<Color>(
-                                            AGLDemoColors.periwinkleColor)),
+                                    thumbColor: WidgetStateProperty.all<Color>(
+                                        AGLDemoColors.periwinkleColor)),
                               ),
                             )
                           : const SizedBox(),

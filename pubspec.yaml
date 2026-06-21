@@ -30,6 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  bluez_native_comms:
+    git:
+      url: https://github.com/jwinarske/bluez_native.git
+      ref: main
 
 
   # The following adds the Cupertino Icons font to your application.

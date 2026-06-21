@@ -9,6 +9,7 @@ export 'data/theme/theme.dart';
 export 'data/models/vehicle.dart';
 export 'data/models/units.dart';
 export 'data/models/audio_state.dart';
+export 'data/models/bluetooth_power_state.dart';
 export 'data/models/radio_state.dart';
 export 'data/models/mediaplayer_state.dart';
 export 'data/models/connections_signals.dart';
@@ -88,10 +89,7 @@ export 'package:flutter_ics_homescreen/core/constants/colors.dart';
 export 'package:flutter_ics_homescreen/presentation/screens/hvac/widgets/semi_circle_painter.dart';
 export 'package:flutter_ics_homescreen/presentation/common_widget/volume_and_fan_control.dart';
 
-
-
 //proto
-
 
 // export 'l10n/l10n.dart';
 // export 'package:flutter_gen/gen_l10n/app_localizations.dart';
