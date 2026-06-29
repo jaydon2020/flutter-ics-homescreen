@@ -1,0 +1,18 @@
+# The package:hooks build hook rebuilds libbluez_nc.so on the consumer's
+# machine using the sources under native/, so those must ship in the
+# published archive. Exclude build outputs, tests, and scripts instead.
+
+build/
+native/build/
+native/build-*/
+native/test/
+native/third_party/sdbus-cpp/build/
+native/third_party/sdbus-cpp/.git/
+
+interfaces/
+scripts/
+.github/
+.clang-format
+.clang-tidy
+.gitmodules
+codecov.yaml
