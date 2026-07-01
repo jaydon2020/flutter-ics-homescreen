@@ -58,6 +58,10 @@ dependencies:
     path: ./packages/flutter_calendar_carousel
   dart_mpd: ^0.4.1
   mime: ^2.0.0
+  # Vendored from jwinarske/bluez_native 0.2.0 (85ecffc) so its native
+  # sdbus-cpp submodule is available to the native-assets build hook.
+  bluez_native:
+    path: ./packages/bluez_native
 
 dev_dependencies:
   flutter_test:
