@@ -1,0 +1,53 @@
+// example/pair_device.dart — pair with a Bluetooth device.
+
+import 'package:bluez_native/bluez_native.dart';
+
+import 'example_utils.dart';
+
+Future<void> main(List<String> args) async {
+  if (args.isEmpty) {
+    print(
+      'Usage: dart run example/pair_device.dart <device_address> '
+      '[--timeout <seconds>]',
+    );
+    return;
+  }
+
+  final timeout = parseScanTimeout(args);
+  final client = BlueZClient();
+  await client.connect();
+
+  final adapter = client.adapters.first;
+
+  if (!adapter.powered) {
+    print('Powering on adapter...');
+    await adapter.setPowered(true);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+  }
+
+  final target = await findDevice(client, adapter, args[0], timeout: timeout);
+  if (target == null) {
+    await client.close();
+    return;
+  }
+
+  print('Found: ${target.name.isNotEmpty ? target.name : target.address}');
+  print('Paired: ${target.paired}');
+
+  if (target.paired) {
+    print('Already paired.');
+    await client.close();
+    return;
+  }
+
+  print('Pairing...');
+  try {
+    await target.pair();
+    print('Paired: ${target.paired}');
+  } on BlueZOperationException catch (e) {
+    print('Pairing failed: $e');
+  }
+
+  await client.close();
+  print('Done.');
+}
