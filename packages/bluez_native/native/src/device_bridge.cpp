@@ -2,8 +2,9 @@
 
 #include "device_bridge.h"
 
-#include <memory>
-#include <optional>
+#include <exception>
+#include <string>
+#include <thread>
 #include <utility>
 
 DeviceBridge::DeviceBridge(sdbus::IConnection& conn, std::string device_path)
@@ -37,24 +38,25 @@ void DeviceBridge::call_device_method_async(sdbus::IConnection& conn,
                                             const std::string& device_path,
                                             const char* method_name,
                                             Dart_Port_DL result_port) {
-  // The proxy must stay alive until the async callback fires.
-  // Capture it as a shared_ptr in the callback lambda.
-  auto proxy = std::shared_ptr<sdbus::IProxy>(
-      sdbus::createProxy(conn, sdbus::ServiceName{kBluezService},
-                         sdbus::ObjectPath{device_path})
-          .release());
-
-  proxy->callMethodAsync(method_name)
-      .onInterface(kDeviceIface)
-      .uponReplyInvoke(
-          [proxy, device_path, result_port](std::optional<sdbus::Error> error) {
-            if (error) {
-              post_error(result_port, device_path, error->getName(),
-                         error->getMessage());
-            } else {
-              post_success(result_port);
-            }
-          });
+  (void)conn;
+  std::thread([device_path, method_name = std::string(method_name),
+               result_port]() {
+    try {
+      auto worker_conn = sdbus::createSystemBusConnection();
+      auto proxy = sdbus::createProxy(*worker_conn,
+                                      sdbus::ServiceName{kBluezService},
+                                      sdbus::ObjectPath{device_path});
+      proxy->callMethod(method_name.c_str()).onInterface(kDeviceIface);
+      post_success(result_port);
+    } catch (const sdbus::Error& e) {
+      post_error(result_port, device_path, e.getName(), e.getMessage());
+    } catch (const std::exception& e) {
+      post_error(result_port, device_path, "org.bluez.Error.Failed", e.what());
+    } catch (...) {
+      post_error(result_port, device_path, "org.bluez.Error.Failed",
+                 "Unknown native error");
+    }
+  }).detach();
 }
 
 void DeviceBridge::cancel_pairing() {
