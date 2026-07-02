@@ -152,6 +152,16 @@ class BlueZDevice {
     BlueZBindings.deviceCancelPairing(_clientHandle, objectPath);
   }
 
+  /// Mark this device as trusted or untrusted in BlueZ.
+  Future<void> setTrust(bool value) async {
+    BlueZBindings.deviceSetPropertyBool(
+      _clientHandle,
+      objectPath,
+      'Trusted',
+      value,
+    );
+  }
+
   /// Wait for ServicesResolved = true after connect().
   ///
   /// Times out after [timeout] (default 10 seconds) to avoid hanging
