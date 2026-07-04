@@ -17,3 +17,5 @@ const randomHybridAnimationDefault =
     bool.fromEnvironment('RANDOM_HYBRID_ANIMATION');
 const enableVoiceAssistantDefault =
     bool.fromEnvironment('ENABLE_VOICE_ASSISTANT');
+const showBluetoothErrorsDefault =
+    bool.fromEnvironment('SHOW_BLUETOOTH_ERRORS');
