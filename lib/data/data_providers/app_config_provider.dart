@@ -209,6 +209,7 @@ class AppConfig {
   final MpdConfig mpdConfig;
   final VoiceAgentConfig voiceAgentConfig;
   final bool enableVoiceAssistant;
+  final bool showBluetoothErrors;
 
   static String configFilePath = '/etc/xdg/AGL/flutter-ics-homescreen.toml';
 
@@ -221,7 +222,8 @@ class AppConfig {
       required this.storageConfig,
       required this.mpdConfig,
       required this.voiceAgentConfig,
-      required this.enableVoiceAssistant});
+      required this.enableVoiceAssistant,
+      required this.showBluetoothErrors});
 
   static KuksaConfig parseKuksaConfig() {
     final KuksaConfig defaultConfig = KuksaConfig.defaultConfig();
@@ -386,6 +388,14 @@ final appConfigProvider = Provider((ref) {
       }
     }
 
+    bool showBluetoothErrors = showBluetoothErrorsDefault;
+    if (configMap.containsKey('show-bluetooth-errors')) {
+      var value = configMap['show-bluetooth-errors'];
+      if (value is bool) {
+        showBluetoothErrors = value;
+      }
+    }
+
     bool disableBkgAnimation = disableBkgAnimationDefault;
     if (configMap.containsKey('disable-bg-animation')) {
       var value = configMap['disable-bg-animation'];
@@ -419,7 +429,8 @@ final appConfigProvider = Provider((ref) {
         storageConfig: storageConfig,
         mpdConfig: mpdConfig,
         voiceAgentConfig: voiceAgentConfig,
-        enableVoiceAssistant: enableVoiceAssistant);
+        enableVoiceAssistant: enableVoiceAssistant,
+        showBluetoothErrors: showBluetoothErrors);
   } catch (_) {
     return AppConfig(
         disableBkgAnimation: disableBkgAnimationDefault,
@@ -430,6 +441,7 @@ final appConfigProvider = Provider((ref) {
         storageConfig: StorageConfig.defaultConfig(),
         mpdConfig: MpdConfig.defaultConfig(),
         voiceAgentConfig: VoiceAgentConfig.defaultConfig(),
-        enableVoiceAssistant: enableVoiceAssistantDefault);
+        enableVoiceAssistant: enableVoiceAssistantDefault,
+        showBluetoothErrors: showBluetoothErrorsDefault);
   }
 });

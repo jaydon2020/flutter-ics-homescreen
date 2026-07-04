@@ -1,217 +1,229 @@
-import 'package:flutter_ics_homescreen/presentation/custom_icons/custom_icons.dart';
+import 'dart:ui';
+
+import 'package:bluez_native/bluez_native.dart';
 
 import '../../../../../../../export.dart';
-import 'bluetooth.dart';
+import 'bluetooth_dialog.dart';
 
-class BluetoothContent extends ConsumerStatefulWidget {
-  const BluetoothContent({
-    super.key,
-  });
+class BluetoothContent extends ConsumerWidget {
+  const BluetoothContent({super.key});
 
   @override
-  BluetoothContentState createState() => BluetoothContentState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final btState = ref.watch(bluetoothProvider);
 
-class BluetoothContentState extends ConsumerState<BluetoothContent> {
-  final List<Bluetooth> btList = [
-    Bluetooth(
-        icon: const Icon(CustomIcons.wifi_4_bar_unlocked),
-        name: 'bt',
-        isConnected: true),
-    Bluetooth(
-        icon: const Icon(CustomIcons.wifi_4_bar_locked), name: 'BT Phone 0'),
-    Bluetooth(
-        icon: const Icon(CustomIcons.wifi_3_bar_locked), name: 'BT Phone 1'),
-    Bluetooth(
-        icon: const Icon(CustomIcons.wifi_2_bar_locked), name: 'BT Phone 2'),
-    Bluetooth(
-        icon: const Icon(CustomIcons.wifi_1_bar_locked), name: 'BT Phone 1'),
-  ];
-  bool isLoading = false;
-  Bluetooth currentBt =
-      Bluetooth(icon: const Icon(Icons.wifi), name: '22', isConnected: true);
-  @override
-  void initState() {
-    currentBt = btList[0];
-    super.initState();
-  }
-
-  void setCurrentBt(int index) async {
-    if (currentBt == btList[index]) return;
-    isLoading = true;
-    setState(() {
-      currentBt = btList[index];
+    ref.listen<String?>(bluetoothProvider.select((s) => s.error), (_, next) {
+      if (next == null) return;
+      if (!ref.read(appConfigProvider).showBluetoothErrors) {
+        ref.read(bluetoothProvider.notifier).clearError();
+        return;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(next)));
+      ref.read(bluetoothProvider.notifier).clearError();
     });
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        isLoading = false;
-      });
-    });
-  }
 
-  void removeBtPair(int index) {
-    setState(() {
-      btList.removeAt(index);
-    });
-  }
-
-  void disconnect() {
-    setState(() {
-      currentBt = Bluetooth(
-          icon: const Icon(
-            Icons.bluetooth_disabled,
-          ),
-          name: '');
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Column(
       children: [
         CommonTitle(
-          title: "Bluetooth",
+          title: 'Bluetooth',
           hasBackButton: true,
-          onPressed: () {
-            ref.read(appProvider.notifier).back();
-          },
+          onPressed: () => ref.read(appProvider.notifier).back(),
         ),
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 144),
-            itemCount: btList.length,
-            separatorBuilder: (context, index) {
-              return const SizedBox(
-                height: 8,
-              );
-            },
+            itemCount: btState.pairedDevices.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              return Container(
-                height: 130,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      stops: currentBt == btList[index]
-                          ? [0, 0.01, 0.8]
-                          : [0.1, 1],
-                      colors: currentBt == btList[index]
-                          ? <Color>[
-                              Colors.white,
-                              Colors.blue,
-                              const Color.fromARGB(16, 41, 98, 255)
-                            ]
-                          : <Color>[Colors.black, Colors.black12]),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    setCurrentBt(index);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 17, horizontal: 24),
-                    child: Row(children: [
-                      Expanded(
-                        child: Text(
-                          btList[index].name,
-                          //style: Theme.of(context).textTheme.titleMedium,
-                          style: TextStyle(
-                              color: currentBt == btList[index]
-                                  ? Colors.white
-                                  : AGLDemoColors.periwinkleColor,
-                              fontSize: 40),
-                        ),
-                      ),
-                      currentBt == btList[index]
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                isLoading
-                                    ? const Padding(
-                                        padding: EdgeInsets.only(right: 15.0),
-                                        child: Text(
-                                          'Connecting...',
-                                          style: TextStyle(fontSize: 26),
-                                        ),
-                                      )
-                                    : Padding(
-                                        padding:
-                                            const EdgeInsets.only(right: 8.0),
-                                        child: ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xFF1C2D92),
-                                            side: const BorderSide(
-                                                color: Color(0xFF285DF4),
-                                                width: 2),
-                                          ),
-                                          child: const Padding(
-                                            padding: EdgeInsets.all(18),
-                                            child: Text(
-                                              'Disconnect',
-                                              style: TextStyle(
-                                                color: Color(0xFFC1D8FF),
-                                                fontSize: 26,
-                                              ),
-                                            ),
-                                          ),
-                                          onPressed: () {
-                                            disconnect();
-                                          },
-                                        ),
-                                      ),
-                                isLoading
-                                    ? const SizedBox(
-                                        width: 48,
-                                        height: 48,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 3,
-                                        ))
-                                    : IconButton(
-                                        padding: EdgeInsets.zero,
-                                        onPressed: () {
-                                          removeBtPair(index);
-                                        },
-                                        icon: const Icon(
-                                          Icons.close,
-                                          color: AGLDemoColors.periwinkleColor,
-                                          size: 48,
-                                        ),
-                                      ),
-                              ],
-                            )
-                          : IconButton(
-                              padding: EdgeInsets.zero,
-                              onPressed: () {
-                                removeBtPair(index);
-                              },
-                              icon: const Icon(
-                                Icons.close,
-                                color: AGLDemoColors.periwinkleColor,
-                                size: 48,
-                              ),
-                            ),
-                    ]),
-                  ),
-                ),
+              final device = btState.pairedDevices[index];
+              return _PairedDeviceTile(
+                device: device,
+                busy: btState.busyAddress == device.address,
+                operation: btState.busyAddress == device.address
+                    ? btState.operation
+                    : null,
               );
             },
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(bottom: 150.0),
+          padding: const EdgeInsets.only(bottom: 150),
           child: GenericButton(
             height: 130,
             width: 501,
             text: 'Scan for New Device',
-            onTap: () {},
+            onTap: () => ref
+                .read(appProvider.notifier)
+                .updateNested(AppState.bluetoothScan),
           ),
         ),
-        const SizedBox(
-          height: 100,
-        )
+        const SizedBox(height: 100),
       ],
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Paired device row
+// ---------------------------------------------------------------------------
+
+class _PairedDeviceTile extends ConsumerWidget {
+  const _PairedDeviceTile({
+    required this.device,
+    required this.busy,
+    required this.operation,
+  });
+
+  final BlueZDevice device;
+  final bool busy;
+  final BluetoothOperation? operation;
+
+  String get _statusLabel => switch (operation) {
+    BluetoothOperation.disconnecting => 'Disconnecting...',
+    BluetoothOperation.removing => 'Removing...',
+    BluetoothOperation.switching => 'Switching...',
+    _ => 'Connecting...',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = device.connected || busy;
+    final notifier = ref.read(bluetoothProvider.notifier);
+
+    return Container(
+      height: 130,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          stops: selected ? const [0, 0.01, 0.8] : const [0.1, 1],
+          colors: selected
+              ? [
+                  Colors.white,
+                  Colors.blue,
+                  const Color.fromARGB(16, 41, 98, 255),
+                ]
+              : [Colors.black, Colors.black12],
+        ),
+      ),
+      child: InkWell(
+        onTap: selected ? null : () => notifier.pairAndConnect(device),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 24),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  bluetoothDeviceName(device),
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : AGLDemoColors.periwinkleColor,
+                    fontSize: 40,
+                  ),
+                ),
+              ),
+              if (busy) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 15),
+                  child: Text(
+                    _statusLabel,
+                    style: const TextStyle(fontSize: 26),
+                  ),
+                ),
+                const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+              ] else ...[
+                if (device.connected)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1C2D92),
+                        side: const BorderSide(
+                          color: Color(0xFF285DF4),
+                          width: 2,
+                        ),
+                      ),
+                      onPressed: () => notifier.disconnect(device),
+                      child: const Padding(
+                        padding: EdgeInsets.all(18),
+                        child: Text(
+                          'Disconnect',
+                          style: TextStyle(
+                            color: Color(0xFFC1D8FF),
+                            fontSize: 26,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => _showForgetDialog(context, ref, device),
+                  icon: const Icon(
+                    Icons.close,
+                    color: AGLDemoColors.periwinkleColor,
+                    size: 48,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Forget confirmation dialog
+// ---------------------------------------------------------------------------
+
+Future<void> _showForgetDialog(
+  BuildContext context,
+  WidgetRef ref,
+  BlueZDevice device,
+) async {
+  final name = bluetoothDeviceName(device);
+  final isConnected = device.connected;
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    barrierColor: const Color(0xB20A1238),
+    builder: (ctx) => BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        child: BluetoothDialog(
+          title: 'Forget Device?',
+          body: Text(
+            'Remove $name from paired devices?'
+            '${isConnected ? '\n\nThe device will be disconnected.' : ''}'
+            '\n\nNote: You must also forget this system on your device\'s '
+            'Bluetooth settings before pairing again.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AGLDemoColors.periwinkleColor,
+              fontSize: 28,
+            ),
+          ),
+          cancelLabel: 'Cancel',
+          onCancel: () => Navigator.of(ctx).pop(false),
+          confirmLabel: 'Forget',
+          onConfirm: () => Navigator.of(ctx).pop(true),
+        ),
+      ),
+    ),
+  );
+
+  if (confirmed == true && context.mounted) {
+    ref.read(bluetoothProvider.notifier).removeDevice(device);
   }
 }
