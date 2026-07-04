@@ -3,9 +3,9 @@ import 'package:flutter_ics_homescreen/export.dart';
 class SignalNotifier extends StateNotifier<Signals> {
   SignalNotifier(super.state);
 
-  void startListen() {}
-  void toggleBluetooth() {
-    state = state.copyWith(isBluetoothConnected: !state.isBluetoothConnected);
+  void setBluetoothConnected(bool isConnected) {
+    if (state.isBluetoothConnected == isConnected) return;
+    state = state.copyWith(isBluetoothConnected: isConnected);
   }
 
   void toggleWifi() {
