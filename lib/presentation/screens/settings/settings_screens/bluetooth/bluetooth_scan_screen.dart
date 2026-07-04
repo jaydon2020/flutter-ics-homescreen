@@ -1,12 +1,14 @@
 import 'package:flutter_ics_homescreen/export.dart';
+
 import 'widgets/bluetooth_demo_content.dart';
-import 'widgets/bluetooth_content.dart';
 import 'widgets/bluetooth_pairing_request.dart';
+import 'widgets/bluetooth_scan_content.dart';
 
-class BluetoothPage extends ConsumerWidget {
-  const BluetoothPage({super.key});
+class BluetoothScanPage extends ConsumerWidget {
+  const BluetoothScanPage({super.key});
 
-  static Page<void> page() => const MaterialPage<void>(child: BluetoothPage());
+  static Page<void> page() =>
+      const MaterialPage<void>(child: BluetoothScanPage());
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,10 +19,7 @@ class BluetoothPage extends ConsumerWidget {
 
     return const Scaffold(
       body: Stack(
-        children: [
-          BluetoothContent(),
-          BluetoothPairingRequest(),
-        ],
+        children: [BluetoothScanContent(), BluetoothPairingRequest()],
       ),
     );
   }

@@ -35,6 +35,7 @@ enum AppState {
   splash,
   dateTime,
   bluetooth,
+  bluetoothScan,
   wifi,
   wired,
   audioSettings,
@@ -64,6 +65,10 @@ class AppStateNotifier extends Notifier<AppState> {
 
   void update(AppState newState) {
     previous = state;
+    state = newState;
+  }
+
+  void replace(AppState newState) {
     state = newState;
   }
 

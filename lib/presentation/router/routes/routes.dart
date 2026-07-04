@@ -1,6 +1,7 @@
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/date_time/date/date_screen.dart';
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/date_time/date/select_year.dart';
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/date_time/time/time_screen.dart';
+import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/bluetooth/bluetooth_scan_screen.dart';
 
 import '../../../../export.dart';
 import '../../screens/settings/settings_screens/voice_assistant/voice_assistant_screen.dart';
@@ -29,6 +30,8 @@ List<Page<dynamic>> onGenerateAppViewPages(
       return [DateTimePage.page()];
     case AppState.bluetooth:
       return [BluetoothPage.page()];
+    case AppState.bluetoothScan:
+      return [BluetoothScanPage.page()];
     case AppState.wifi:
       return [WifiPage.page()];
     case AppState.wired:
