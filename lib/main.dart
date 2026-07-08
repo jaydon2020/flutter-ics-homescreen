@@ -4,6 +4,7 @@ import 'export.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
 
   // Start asynchronously connecting to API provider backends
   final container = ProviderContainer();

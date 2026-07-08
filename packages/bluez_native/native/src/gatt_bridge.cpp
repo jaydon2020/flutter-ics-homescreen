@@ -2,17 +2,39 @@
 
 #include "gatt_bridge.h"
 
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <utility>
+#include <vector>
 
-// Helper: create a shared proxy that stays alive through async callbacks.
-static std::shared_ptr<sdbus::IProxy> make_proxy(sdbus::IConnection& conn,
-                                                 const std::string& path) {
-  return std::shared_ptr<sdbus::IProxy>(
+struct PendingProxy {
+  std::shared_ptr<sdbus::IProxy> proxy;
+  std::atomic_bool done{false};
+};
+
+static std::mutex pending_proxies_mutex;
+static std::vector<std::shared_ptr<PendingProxy>> pending_proxies;
+
+static void reap_done_proxies() {
+  std::scoped_lock lock(pending_proxies_mutex);
+  std::erase_if(pending_proxies, [](const auto& entry) {
+    return entry->done.load(std::memory_order_acquire);
+  });
+}
+
+static std::shared_ptr<PendingProxy> make_proxy(sdbus::IConnection& conn,
+                                                const std::string& path) {
+  reap_done_proxies();
+  auto entry = std::make_shared<PendingProxy>();
+  entry->proxy = std::shared_ptr<sdbus::IProxy>(
       sdbus::createProxy(conn, sdbus::ServiceName{"org.bluez"},
                          sdbus::ObjectPath{path})
           .release());
+  std::scoped_lock lock(pending_proxies_mutex);
+  pending_proxies.push_back(entry);
+  return entry;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -22,22 +44,26 @@ static std::shared_ptr<sdbus::IProxy> make_proxy(sdbus::IConnection& conn,
 void GattCharBridge::read_value_async(sdbus::IConnection& conn,
                                       const std::string& char_path,
                                       Dart_Port_DL result_port) {
-  auto proxy = make_proxy(conn, char_path);
+  auto pending = make_proxy(conn, char_path);
   std::map<std::string, sdbus::Variant> options;
 
-  proxy->callMethodAsync("ReadValue")
+  pending->proxy->callMethodAsync("ReadValue")
       .onInterface(kGattCharIface)
       .withArguments(options)
-      .uponReplyInvoke(
-          [proxy, char_path, result_port](std::optional<sdbus::Error> error,
-                                          const std::vector<uint8_t>& value) {
-            if (error) {
-              post_error(result_port, char_path, error->getName(),
-                         error->getMessage());
-            } else {
-              post_value_result(result_port, char_path, value);
-            }
-          });
+      .uponReplyInvoke([pending = std::weak_ptr<PendingProxy>(pending),
+                        char_path,
+                        result_port](std::optional<sdbus::Error> error,
+                                     const std::vector<uint8_t>& value) {
+        if (error) {
+          post_error(result_port, char_path, error->getName(),
+                     error->getMessage());
+        } else {
+          post_value_result(result_port, char_path, value);
+        }
+        if (auto entry = pending.lock()) {
+          entry->done.store(true, std::memory_order_release);
+        }
+      });
 }
 
 void GattCharBridge::write_value_async(sdbus::IConnection& conn,
@@ -51,46 +77,52 @@ void GattCharBridge::write_value_async(sdbus::IConnection& conn,
                "Invalid write data");
     return;
   }
-  auto proxy = make_proxy(conn, char_path);
-
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   std::vector<uint8_t> value(data, data + static_cast<size_t>(len));
+  auto pending = make_proxy(conn, char_path);
   std::map<std::string, sdbus::Variant> options;
   if (!with_response) {
     options["type"] = sdbus::Variant{std::string{"command"}};
   }
 
-  proxy->callMethodAsync("WriteValue")
+  pending->proxy->callMethodAsync("WriteValue")
       .onInterface(kGattCharIface)
       .withArguments(value, options)
-      .uponReplyInvoke(
-          [proxy, char_path, result_port](std::optional<sdbus::Error> error) {
-            if (error) {
-              post_error(result_port, char_path, error->getName(),
-                         error->getMessage());
-            } else {
-              post_success(result_port);
-            }
-          });
+      .uponReplyInvoke([pending = std::weak_ptr<PendingProxy>(pending),
+                        char_path,
+                        result_port](std::optional<sdbus::Error> error) {
+        if (error) {
+          post_error(result_port, char_path, error->getName(),
+                     error->getMessage());
+        } else {
+          post_success(result_port);
+        }
+        if (auto entry = pending.lock()) {
+          entry->done.store(true, std::memory_order_release);
+        }
+      });
 }
 
 void GattCharBridge::start_notify_async(sdbus::IConnection& conn,
                                         const std::string& char_path,
                                         ObjectManager& obj_mgr,
                                         Dart_Port_DL result_port) {
-  auto proxy = make_proxy(conn, char_path);
+  auto pending = make_proxy(conn, char_path);
 
-  proxy->callMethodAsync("StartNotify")
+  pending->proxy->callMethodAsync("StartNotify")
       .onInterface(kGattCharIface)
-      .uponReplyInvoke([proxy, char_path, &obj_mgr,
+      .uponReplyInvoke([pending = std::weak_ptr<PendingProxy>(pending),
+                        char_path, &obj_mgr,
                         result_port](std::optional<sdbus::Error> error) {
         if (error) {
           post_error(result_port, char_path, error->getName(),
                      error->getMessage());
         } else {
-          // Wire up PropertiesChanged for Value notifications.
           obj_mgr.subscribe_char_notify(char_path);
           post_success(result_port);
+        }
+        if (auto entry = pending.lock()) {
+          entry->done.store(true, std::memory_order_release);
         }
       });
 }
@@ -99,11 +131,12 @@ void GattCharBridge::stop_notify_async(sdbus::IConnection& conn,
                                        const std::string& char_path,
                                        ObjectManager& obj_mgr,
                                        Dart_Port_DL result_port) {
-  auto proxy = make_proxy(conn, char_path);
+  auto pending = make_proxy(conn, char_path);
 
-  proxy->callMethodAsync("StopNotify")
+  pending->proxy->callMethodAsync("StopNotify")
       .onInterface(kGattCharIface)
-      .uponReplyInvoke([proxy, char_path, &obj_mgr,
+      .uponReplyInvoke([pending = std::weak_ptr<PendingProxy>(pending),
+                        char_path, &obj_mgr,
                         result_port](std::optional<sdbus::Error> error) {
         if (error) {
           post_error(result_port, char_path, error->getName(),
@@ -111,6 +144,9 @@ void GattCharBridge::stop_notify_async(sdbus::IConnection& conn,
         } else {
           obj_mgr.unsubscribe_char_notify(char_path);
           post_success(result_port);
+        }
+        if (auto entry = pending.lock()) {
+          entry->done.store(true, std::memory_order_release);
         }
       });
 }
@@ -180,22 +216,26 @@ void GattCharBridge::post_error(Dart_Port_DL result_port,
 void GattDescBridge::read_value_async(sdbus::IConnection& conn,
                                       const std::string& desc_path,
                                       Dart_Port_DL result_port) {
-  auto proxy = make_proxy(conn, desc_path);
+  auto pending = make_proxy(conn, desc_path);
   std::map<std::string, sdbus::Variant> options;
 
-  proxy->callMethodAsync("ReadValue")
+  pending->proxy->callMethodAsync("ReadValue")
       .onInterface(kGattDescIface)
       .withArguments(options)
-      .uponReplyInvoke(
-          [proxy, desc_path, result_port](std::optional<sdbus::Error> error,
-                                          const std::vector<uint8_t>& value) {
-            if (error) {
-              post_error(result_port, desc_path, error->getName(),
-                         error->getMessage());
-            } else {
-              post_value_result(result_port, desc_path, value);
-            }
-          });
+      .uponReplyInvoke([pending = std::weak_ptr<PendingProxy>(pending),
+                        desc_path,
+                        result_port](std::optional<sdbus::Error> error,
+                                     const std::vector<uint8_t>& value) {
+        if (error) {
+          post_error(result_port, desc_path, error->getName(),
+                     error->getMessage());
+        } else {
+          post_value_result(result_port, desc_path, value);
+        }
+        if (auto entry = pending.lock()) {
+          entry->done.store(true, std::memory_order_release);
+        }
+      });
 }
 
 void GattDescBridge::write_value_async(sdbus::IConnection& conn,
@@ -208,24 +248,27 @@ void GattDescBridge::write_value_async(sdbus::IConnection& conn,
                "Invalid write data");
     return;
   }
-  auto proxy = make_proxy(conn, desc_path);
-
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   std::vector<uint8_t> value(data, data + static_cast<size_t>(len));
+  auto pending = make_proxy(conn, desc_path);
   std::map<std::string, sdbus::Variant> options;
 
-  proxy->callMethodAsync("WriteValue")
+  pending->proxy->callMethodAsync("WriteValue")
       .onInterface(kGattDescIface)
       .withArguments(value, options)
-      .uponReplyInvoke(
-          [proxy, desc_path, result_port](std::optional<sdbus::Error> error) {
-            if (error) {
-              post_error(result_port, desc_path, error->getName(),
-                         error->getMessage());
-            } else {
-              post_success(result_port);
-            }
-          });
+      .uponReplyInvoke([pending = std::weak_ptr<PendingProxy>(pending),
+                        desc_path,
+                        result_port](std::optional<sdbus::Error> error) {
+        if (error) {
+          post_error(result_port, desc_path, error->getName(),
+                     error->getMessage());
+        } else {
+          post_success(result_port);
+        }
+        if (auto entry = pending.lock()) {
+          entry->done.store(true, std::memory_order_release);
+        }
+      });
 }
 
 // ── Dart posting helpers ────────────────────────────────────────────────────
