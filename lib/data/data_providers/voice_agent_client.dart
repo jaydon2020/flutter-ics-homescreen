@@ -11,9 +11,10 @@ class VoiceAgentClient {
   final Ref ref;
   StreamSubscription<WakeWordStatus>? _wakeWordStatusSubscription;
 
-  VoiceAgentClient({required this.config,required this.ref}) {
+  VoiceAgentClient({required this.config, required this.ref}) {
     // Initialize the client channel without connecting immediately
-    debugPrint("Connecting to Voice Assistant at ${config.hostname}:${config.port}");
+    debugPrint(
+        "Connecting to Voice Assistant at ${config.hostname}:${config.port}");
     String host = config.hostname;
     int port = config.port;
     _channel = ClientChannel(
@@ -24,7 +25,6 @@ class VoiceAgentClient {
       ),
     );
     _client = VoiceAgentServiceClient(_channel);
-
   }
 
   Future<ServiceStatus> checkServiceStatus() async {
@@ -88,7 +88,8 @@ class VoiceAgentClient {
   Future<void> startWakeWordDetection() async {
     // Capture the state before any async operations
     _wakeWordStatusSubscription?.cancel();
-    final isWakeWordModeActive = ref.read(voiceAssistantStateProvider.select((value) => value.isWakeWordMode));
+    final isWakeWordModeActive = ref.read(
+        voiceAssistantStateProvider.select((value) => value.isWakeWordMode));
 
     if (isWakeWordModeActive) {
       debugPrint("Wake Word Detection Started");
@@ -97,20 +98,20 @@ class VoiceAgentClient {
       return;
     }
     _wakeWordStatusSubscription = detectWakeWord().listen(
-          (response) async {
+      (response) async {
         if (response.status) {
           await startVoiceAssistant();
           // Wait for 2-3 seconds and then restart wake word detection
           await Future.delayed(const Duration(seconds: 2));
           startWakeWordDetection();
         }
-        if(!ref.read(voiceAssistantStateProvider.select((value) => value.isWakeWordMode))){
+        if (!ref.read(voiceAssistantStateProvider
+            .select((value) => value.isWakeWordMode))) {
           _wakeWordStatusSubscription?.cancel();
           return;
         }
       },
-      onError: (error) {
-      },
+      onError: (error) {},
       cancelOnError: true,
     );
   }
@@ -128,18 +129,15 @@ class VoiceAgentClient {
       final controlStream = Stream.fromIterable([controlMessage]);
 
       // Call the gRPC method to start recording
-      final response =
-      await recognizeVoiceCommand(controlStream);
+      final response = await recognizeVoiceCommand(controlStream);
 
       streamId = response.streamId;
-    } catch (e) {
-    }
+    } catch (e) {}
     return streamId;
   }
 
   Future<RecognizeResult> stopRecording(
-      String streamId, String nluModel, String stt,bool isOnlineMode) async {
-
+      String streamId, String nluModel, String stt, bool isOnlineMode) async {
     try {
       NLUModel model = NLUModel.RASA;
       if (nluModel == "snips") {
@@ -163,21 +161,18 @@ class VoiceAgentClient {
         ..sttFramework = sttFramework
         ..onlineMode = onlineMode;
 
-
       // Create a Stream with the control message
       final controlStream = Stream.fromIterable([controlMessage]);
 
       // Call the gRPC method to stop recording
-      final response =
-      await recognizeVoiceCommand(controlStream);
+      final response = await recognizeVoiceCommand(controlStream);
 
       // Process and store the result
       if (response.status == RecognizeStatusType.REC_SUCCESS) {
       } else if (response.status == RecognizeStatusType.INTENT_NOT_RECOGNIZED) {
         final command = response.command;
         debugPrint("Command is : $command");
-      }
-      else {
+      } else {
         debugPrint('Failed to process your voice command. Please try again.');
       }
       await shutdown();
@@ -190,7 +185,8 @@ class VoiceAgentClient {
     // await voiceAgentClient.shutdown();
   }
 
-  Future<RecognizeResult> recognizeTextCommand(String command, String nluModel) async {
+  Future<RecognizeResult> recognizeTextCommand(
+      String command, String nluModel) async {
     debugPrint("Recognizing Text Command: $command");
     try {
       NLUModel model = NLUModel.RASA;
@@ -203,8 +199,7 @@ class VoiceAgentClient {
         ..nluModel = model;
 
       // Call the gRPC method to stop recording
-      final response =
-      await recognizeTextCommandGrpc(controlMessage);
+      final response = await recognizeTextCommandGrpc(controlMessage);
       debugPrint("Response is : $response");
 
       // Process and store the result
@@ -235,78 +230,96 @@ class VoiceAgentClient {
       // Handle the response as needed
       if (execResponse.status == ExecuteStatusType.EXEC_SUCCESS) {
         final commandResponse = execResponse.response;
-        ref.read(voiceAssistantStateProvider.notifier).updateCommandResponse(commandResponse);
+        ref
+            .read(voiceAssistantStateProvider.notifier)
+            .updateCommandResponse(commandResponse);
         debugPrint("Command Response is : $commandResponse");
       } else if (execResponse.status == ExecuteStatusType.KUKSA_CONN_ERROR) {
         final commandResponse = execResponse.response;
-        ref.read(voiceAssistantStateProvider.notifier).updateCommandResponse(commandResponse);
+        ref
+            .read(voiceAssistantStateProvider.notifier)
+            .updateCommandResponse(commandResponse);
       } else {
-        ref.read(voiceAssistantStateProvider.notifier).updateCommandResponse("Sorry, I couldn't execute your command. Please try again.");
+        ref.read(voiceAssistantStateProvider.notifier).updateCommandResponse(
+            "Sorry, I couldn't execute your command. Please try again.");
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     await shutdown();
   }
 
-
-  Future<void> disableOverlay() async{
+  Future<void> disableOverlay() async {
     await Future.delayed(Duration(seconds: 3));
     ref.read(voiceAssistantStateProvider.notifier).toggleShowOverlay(false);
   }
 
-  Future<void> startVoiceAssistant()async {
+  Future<void> startVoiceAssistant() async {
     ref.read(voiceAssistantStateProvider.notifier).updateCommand(null);
     ref.read(voiceAssistantStateProvider.notifier).updateCommandResponse(null);
 
-    SttModel stt = ref.read(voiceAssistantStateProvider.select((value)=>value.sttModel));
-    bool isOnlineMode = ref.read(voiceAssistantStateProvider.select((value)=>value.isOnlineMode));
+    SttModel stt =
+        ref.read(voiceAssistantStateProvider.select((value) => value.sttModel));
+    bool isOnlineMode = ref.read(
+        voiceAssistantStateProvider.select((value) => value.isOnlineMode));
     String nluModel = "snips";
     String sttModel = "whisper";
-    if(stt == SttModel.vosk){
+    if (stt == SttModel.vosk) {
       sttModel = "vosk";
     }
-    bool isOverlayEnabled = ref.read(voiceAssistantStateProvider.select((value)=>value.voiceAssistantOverlay));
-    bool overlayState = ref.read(voiceAssistantStateProvider.select((value)=>value.showOverLay));
+    bool isOverlayEnabled = ref.read(voiceAssistantStateProvider
+        .select((value) => value.voiceAssistantOverlay));
+    bool overlayState = ref
+        .read(voiceAssistantStateProvider.select((value) => value.showOverLay));
 
     String streamId = await startRecording();
     if (streamId.isNotEmpty) {
       debugPrint('Recording started. Please speak your command.');
-      if(isOverlayEnabled){
-        if(!overlayState){
-          ref.read(voiceAssistantStateProvider.notifier).toggleShowOverlay(true);
+      if (isOverlayEnabled) {
+        if (!overlayState) {
+          ref
+              .read(voiceAssistantStateProvider.notifier)
+              .toggleShowOverlay(true);
         }
       }
 
       ref.read(voiceAssistantStateProvider.notifier).updateButtonPressed(true);
       ref.read(voiceAssistantStateProvider.notifier).updateIsRecording();
-      ref.read(voiceAssistantStateProvider.notifier).updateIsCommandProcessing(false);
+      ref
+          .read(voiceAssistantStateProvider.notifier)
+          .updateIsCommandProcessing(false);
 
       // wait for the recording time
-      await Future.delayed(Duration(seconds: ref.watch(voiceAssistantStateProvider.select((value)=>value.recordingTime))));
+      await Future.delayed(Duration(
+          seconds: ref.watch(voiceAssistantStateProvider
+              .select((value) => value.recordingTime))));
 
       ref.read(voiceAssistantStateProvider.notifier).updateIsRecording();
-      ref.read(voiceAssistantStateProvider.notifier).updateIsCommandProcessing(true);
+      ref
+          .read(voiceAssistantStateProvider.notifier)
+          .updateIsCommandProcessing(true);
 
       // stop the recording and process the command
-      RecognizeResult recognizeResult = await stopRecording(streamId, nluModel, sttModel,isOnlineMode);
+      RecognizeResult recognizeResult =
+          await stopRecording(streamId, nluModel, sttModel, isOnlineMode);
 
-      ref.read(voiceAssistantStateProvider.notifier).updateCommand(recognizeResult.command);
+      ref
+          .read(voiceAssistantStateProvider.notifier)
+          .updateCommand(recognizeResult.command);
       debugPrint('Recording stopped. Processing the command...');
 
       // Execute the command
       await executeCommand(recognizeResult);
 
-      ref.read(voiceAssistantStateProvider.notifier).updateIsCommandProcessing(false);
+      ref
+          .read(voiceAssistantStateProvider.notifier)
+          .updateIsCommandProcessing(false);
       ref.read(voiceAssistantStateProvider.notifier).updateButtonPressed(false);
       ref.read(voiceAssistantStateProvider.notifier).updateCommand(null);
-      ref.read(voiceAssistantStateProvider.notifier).updateCommandResponse(null);
+      ref
+          .read(voiceAssistantStateProvider.notifier)
+          .updateCommandResponse(null);
       disableOverlay();
-
     } else {
       debugPrint('Failed to start recording. Please try again.');
     }
-
   }
-
-
 }

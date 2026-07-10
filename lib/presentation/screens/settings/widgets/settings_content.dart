@@ -54,25 +54,29 @@ class Settings extends ConsumerWidget {
                   title: 'Audio Settings',
                   hasSwitch: false,
                   voidCallback: () {
-                    ref.read(appProvider.notifier).update(AppState.audioSettings);
+                    ref
+                        .read(appProvider.notifier)
+                        .update(AppState.audioSettings);
                   }),
-              if(ref.watch(appConfigProvider.select((config) => config.enableVoiceAssistant)))
-              VoiceAssistantSettingsTile(
-                  icon: Icons.keyboard_voice_outlined,
-                  title: "Voice Assistant",
-                  hasSwitch: true,
-                  voidCallback: (){
-                    ref.read(appProvider.notifier).update(AppState.voiceAssistant);
-                  }
-              ),
-              if(ref.watch(storageClientConnectedProvider))
-              SettingsTile(
-                  icon: Icons.person_2_outlined,
-                  title: 'Profiles',
-                  hasSwitch: false,
-                  voidCallback: () {
-                    ref.read(appProvider.notifier).update(AppState.profiles);
-                  }),
+              if (ref.watch(appConfigProvider
+                  .select((config) => config.enableVoiceAssistant)))
+                VoiceAssistantSettingsTile(
+                    icon: Icons.keyboard_voice_outlined,
+                    title: "Voice Assistant",
+                    hasSwitch: true,
+                    voidCallback: () {
+                      ref
+                          .read(appProvider.notifier)
+                          .update(AppState.voiceAssistant);
+                    }),
+              if (ref.watch(storageClientConnectedProvider))
+                SettingsTile(
+                    icon: Icons.person_2_outlined,
+                    title: 'Profiles',
+                    hasSwitch: false,
+                    voidCallback: () {
+                      ref.read(appProvider.notifier).update(AppState.profiles);
+                    }),
               SettingsTile(
                   icon: Icons.straighten,
                   title: 'Units',

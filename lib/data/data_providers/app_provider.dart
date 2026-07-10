@@ -12,7 +12,8 @@ import 'package:flutter_ics_homescreen/data/data_providers/playlist_notifier.dar
 import 'package:flutter_ics_homescreen/data/data_providers/playlist_art_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/val_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/app_launcher.dart';
-import 'package:flutter_ics_homescreen/data/data_providers/radio_client.dart' as radioApi;
+import 'package:flutter_ics_homescreen/data/data_providers/radio_client.dart'
+    as radioApi;
 import 'package:flutter_ics_homescreen/data/data_providers/storage_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/storage_client_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/mpd_client.dart';
@@ -85,7 +86,7 @@ final valClientProvider = Provider((ref) {
   return ValClient(config: config, ref: ref);
 });
 
-final voiceAgentClientProvider = Provider((ref){
+final voiceAgentClientProvider = Provider((ref) {
   VoiceAgentConfig config = ref.watch(appConfigProvider).voiceAgentConfig;
   return VoiceAgentClient(config: config, ref: ref);
 });
@@ -103,14 +104,14 @@ final radioClientProvider = Provider((ref) {
   return radioApi.RadioClient(config: config, ref: ref);
 });
 
-
 final storageClientProvider = Provider((ref) {
   StorageConfig config = ref.watch(appConfigProvider).storageConfig;
   return StorageClient(config: config, ref: ref);
 });
 
 final storageClientConnectedProvider =
-    NotifierProvider<StorageClientConnectedNotifier, bool>(StorageClientConnectedNotifier.new);
+    NotifierProvider<StorageClientConnectedNotifier, bool>(
+        StorageClientConnectedNotifier.new);
 
 final mpdClientProvider = Provider((ref) {
   MpdConfig config = ref.watch(appConfigProvider).mpdConfig;
@@ -161,8 +162,7 @@ final playControllerProvider = Provider((ref) {
   return PlayController(ref: ref);
 });
 
-final usersProvider =
-    NotifierProvider<UsersNotifier, Users>(UsersNotifier.new);
+final usersProvider = NotifierProvider<UsersNotifier, Users>(UsersNotifier.new);
 
 final hybridStateProvider =
     StateNotifierProvider<HybridNotifier, Hybrid>((ref) {
@@ -174,6 +174,6 @@ final currentTimeProvider =
   return CurrentTimeNotifier();
 });
 
-
 final voiceAssistantStateProvider =
-    NotifierProvider<VoiceAssistantStateNotifier, VoiceAssistantState>(VoiceAssistantStateNotifier.new);
+    NotifierProvider<VoiceAssistantStateNotifier, VoiceAssistantState>(
+        VoiceAssistantStateNotifier.new);

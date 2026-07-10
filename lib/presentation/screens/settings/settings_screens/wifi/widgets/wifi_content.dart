@@ -85,7 +85,6 @@ class WifiContentState extends ConsumerState<WifiContent> {
             itemBuilder: (context, index) {
               return Container(
                 height: 130,
-
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                       begin: Alignment.centerLeft,
@@ -101,10 +100,9 @@ class WifiContentState extends ConsumerState<WifiContent> {
                             ]
                           : <Color>[Colors.black, Colors.black12]),
                 ),
-                child: ListTile(                     
+                child: ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 41, horizontal: 24),
-
                   leading: wifiList[index].icon,
                   title: Text(
                     wifiList[index].name,

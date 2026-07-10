@@ -34,7 +34,8 @@ class ValClient {
         case ConnectionState.ready:
           debugPrint('KUKSA.val channel connected');
           if (resubscribeOnSubscriptionError) {
-            debugPrint('Recovering from subscription error, attempting to resubscribe');
+            debugPrint(
+                'Recovering from subscription error, attempting to resubscribe');
             resubscribeOnSubscriptionError = false;
             subscribe();
           }
@@ -89,7 +90,8 @@ class ValClient {
         }
       }, onError: (stacktrace, errorDescriptor) {
         resubscribeOnSubscriptionError = true;
-        debugPrint("(ValClient.subscribe onError) stacktrace: ${stacktrace.toString()}");
+        debugPrint(
+            "(ValClient.subscribe onError) stacktrace: ${stacktrace.toString()}");
       });
     } catch (e) {
       debugPrint(e.toString());
@@ -179,21 +181,24 @@ class ValClient {
   }
 
   void setDistanceUnit(DistanceUnit unit) async {
-    setString(VSSPath.vehicleHmiDistanceUnit,
+    setString(
+      VSSPath.vehicleHmiDistanceUnit,
       unit == DistanceUnit.kilometers ? "KILOMETERS" : "MILES",
       true,
     );
   }
 
   void setTemperatureUnit(TemperatureUnit unit) async {
-    setString(VSSPath.vehicleHmiTemperatureUnit,
+    setString(
+      VSSPath.vehicleHmiTemperatureUnit,
       unit == TemperatureUnit.celsius ? "C" : "F",
       true,
     );
   }
 
   void setPressureUnit(PressureUnit unit) async {
-    setString(VSSPath.vehicleHmiPressureUnit,
+    setString(
+      VSSPath.vehicleHmiPressureUnit,
       unit == PressureUnit.kilopascals ? "KPA" : "PSI",
       true,
     );

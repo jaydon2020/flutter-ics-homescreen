@@ -8,10 +8,10 @@ class HybridModel extends ConsumerStatefulWidget {
 }
 
 class HybridModelState extends ConsumerState<HybridModel> {
-
   @override
   Widget build(BuildContext context) {
-    bool randomHybridAnimation = ref.watch(appConfigProvider).randomHybridAnimation;
+    bool randomHybridAnimation =
+        ref.watch(appConfigProvider).randomHybridAnimation;
     if (!randomHybridAnimation) {
       ref.listen<Vehicle>(vehicleProvider, (Vehicle? previous, Vehicle next) {
         ref.watch(hybridStateProvider.notifier).updateHybridState(
@@ -20,7 +20,7 @@ class HybridModelState extends ConsumerState<HybridModel> {
             false); //TODO get brake value and improve state logic
       });
     }
-    
+
     return const SizedBox(
       width: 500,
       height: 500,

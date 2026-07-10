@@ -22,9 +22,8 @@ class SettingsTileState extends ConsumerState<SettingsTile> {
   @override
   Widget build(BuildContext context) {
     final signal = ref.watch(signalsProvider.select((signal) => signal));
-    final bluetoothState = widget.title == 'Bluetooth'
-        ? ref.watch(bluetoothProvider)
-        : null;
+    final bluetoothState =
+        widget.title == 'Bluetooth' ? ref.watch(bluetoothProvider) : null;
     if (widget.title == 'Bluetooth') {
       isSwitchOn = bluetoothState!.powered;
       ref.listen<String?>(bluetoothProvider.select((state) => state.error), (

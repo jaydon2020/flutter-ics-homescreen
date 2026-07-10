@@ -14,7 +14,7 @@ class MockRef extends Ref {
 void main() {
   late StorageClient storageClient;
   late ProviderContainer container;
-  
+
   setUp(() {
     storageClient = StorageClient(
       config: StorageConfig.defaultConfig(),
@@ -32,7 +32,8 @@ void main() {
     // Access state.
     var userState = container.read(usersProvider);
     final userId = userState.users[0].id;
-    final searchResponse = await storageClient.read(storage_api.Key(key: '${UsersPath.InfotainmentUsers}.$userId.name'));
+    final searchResponse = await storageClient.read(
+        storage_api.Key(key: '${UsersPath.InfotainmentUsers}.$userId.name'));
     expect(searchResponse.success, isTrue);
     expect(searchResponse.result, 'Mark');
     await storageClient.destroyDB();
@@ -49,7 +50,8 @@ void main() {
 
     // Remove User.
     await userClient.removeUser(markId);
-    final searchResponse = await storageClient.search(storage_api.Key(key: markId));
+    final searchResponse =
+        await storageClient.search(storage_api.Key(key: markId));
     expect(searchResponse.success, isTrue);
     expect(searchResponse.result, []);
     await storageClient.destroyDB();
@@ -66,20 +68,22 @@ void main() {
     final markId = userState.users[1].id;
     await userClient.selectUser(markId);
 
-    final readResponseAfterSelectUser = await storageClient.read(storage_api.Key(key: UsersPath.InfotainmentCurrentUser));
+    final readResponseAfterSelectUser = await storageClient
+        .read(storage_api.Key(key: UsersPath.InfotainmentCurrentUser));
     expect(readResponseAfterSelectUser.success, isTrue);
     expect(readResponseAfterSelectUser.result, markId);
     await storageClient.destroyDB();
   });
 
-    test('selected user default', () async {
+  test('selected user default', () async {
     await storageClient.destroyDB();
 
     // Access state.
     var userState = container.read(usersProvider);
     final selectedId = userState.selectedUser.id;
 
-    final readResponse = await storageClient.read(storage_api.Key(key: UsersPath.InfotainmentCurrentUser));
+    final readResponse = await storageClient
+        .read(storage_api.Key(key: UsersPath.InfotainmentCurrentUser));
     expect(readResponse.success, isFalse);
     expect(selectedId, '0');
     await storageClient.destroyDB();
@@ -99,13 +103,16 @@ void main() {
 
     await unitsClient.setDistanceUnit(DistanceUnit.miles);
 
-    final readResponse = await storageClient.read(storage_api.Key(key: VSSPath.vehicleHmiDistanceUnit, namespace: markId));
+    final readResponse = await storageClient.read(storage_api.Key(
+        key: VSSPath.vehicleHmiDistanceUnit, namespace: markId));
     expect(readResponse.success, isTrue);
     expect(readResponse.result, 'MILES');
     await storageClient.destroyDB();
   });
 
-  test('load settings: add users, selcect user, setDistanceUnit, kill state,  initialize', () async {
+  test(
+      'load settings: add users, selcect user, setDistanceUnit, kill state,  initialize',
+      () async {
     await storageClient.destroyDB();
 
     final userClient = container.read(usersProvider.notifier);
@@ -127,7 +134,7 @@ void main() {
     expect(userState.users.length, 5);
     expect(userState.selectedUser.id, markId);
     expect(unitState.distanceUnit, DistanceUnit.miles);
-    
+
     // Killing state.
     container.dispose();
     container = ProviderContainer();
@@ -141,7 +148,7 @@ void main() {
 
     // Load state.
     await initializeSettings(container);
-    
+
     // Check success.
     unitState = container.read(unitStateProvider);
     userState = container.read(usersProvider);
@@ -151,11 +158,12 @@ void main() {
     expect(userNames.contains('Clara'), isTrue);
     expect(userState.users.length, 2);
     expect(unitState.distanceUnit, DistanceUnit.miles);
-  
+
     await storageClient.destroyDB();
   });
 
-  test('loadsettings: add users, setDistanceUnit, kill state, initialize', () async {
+  test('loadsettings: add users, setDistanceUnit, kill state, initialize',
+      () async {
     await storageClient.destroyDB();
 
     final userClient = container.read(usersProvider.notifier);
@@ -175,7 +183,7 @@ void main() {
     expect(userState.users[1].name, 'Mark');
     expect(userState.selectedUser.id, claraId);
     expect(unitState.distanceUnit, DistanceUnit.miles);
-    
+
     // Killing state.
     container.dispose();
     container = ProviderContainer();
@@ -189,7 +197,7 @@ void main() {
 
     // Load state.
     await initializeSettings(container);
-    
+
     // Check success.
     unitState = container.read(unitStateProvider);
     userState = container.read(usersProvider);
@@ -198,16 +206,19 @@ void main() {
     expect(userNames.contains('Mark'), isTrue);
     expect(userNames.contains('Clara'), isTrue);
     expect(unitState.distanceUnit, DistanceUnit.miles);
-  
+
     await storageClient.destroyDB();
   });
 
-  test('loadsettings: initialize, add no user, setDistanceUnit, kill state, inizialize', () async {
+  test(
+      'loadsettings: initialize, add no user, setDistanceUnit, kill state, inizialize',
+      () async {
     await storageClient.destroyDB();
     await initializeSettings(container);
 
     var userState = container.read(usersProvider);
-    var readResponse = await storageClient.read(storage_api.Key(key: '${UsersPath.InfotainmentUsers}.1.name'));
+    var readResponse = await storageClient
+        .read(storage_api.Key(key: '${UsersPath.InfotainmentUsers}.1.name'));
     expect(readResponse.result, 'Heather');
 
     final unitsClient = container.read(unitStateProvider.notifier);
@@ -222,7 +233,7 @@ void main() {
     expect(userState.users[0].name, 'Heather');
     expect(unitState.distanceUnit, DistanceUnit.miles);
     expect(userState.selectedUser.id, '1');
-    
+
     // Killing state.
     container.dispose();
     container = ProviderContainer();
@@ -236,14 +247,14 @@ void main() {
 
     // Load state.
     await initializeSettings(container);
-    
+
     // Check success.
     unitState = container.read(unitStateProvider);
     userState = container.read(usersProvider);
     expect(userState.users[0].name, 'Heather');
     expect(unitState.distanceUnit, DistanceUnit.miles);
     expect(userState.selectedUser.name, 'Heather');
-  
+
     await storageClient.destroyDB();
   });
 
@@ -262,25 +273,28 @@ void main() {
     await unitsClient.setDistanceUnit(DistanceUnit.miles);
     await unitsClient.setTemperatureUnit(TemperatureUnit.fahrenheit);
     await unitsClient.setPressureUnit(PressureUnit.psi);
-  
+
     await userClient.selectUser(markId);
     await unitsClient.setDistanceUnit(DistanceUnit.miles);
     await unitsClient.setTemperatureUnit(TemperatureUnit.celsius);
     await unitsClient.setPressureUnit(PressureUnit.kilopascals);
-  
+
     await userClient.selectUser(claraId);
     var unitState = container.read(unitStateProvider);
     expect(unitState.distanceUnit, DistanceUnit.miles);
     expect(unitState.temperatureUnit, TemperatureUnit.fahrenheit);
     expect(unitState.pressureUnit, PressureUnit.psi);
-  
-    var readResponse = await storageClient.read(storage_api.Key(key: VSSPath.vehicleHmiDistanceUnit, namespace: claraId));
+
+    var readResponse = await storageClient.read(storage_api.Key(
+        key: VSSPath.vehicleHmiDistanceUnit, namespace: claraId));
     expect(readResponse.result, 'MILES');
-    readResponse = await storageClient.read(storage_api.Key(key: VSSPath.vehicleHmiTemperatureUnit, namespace: claraId));
+    readResponse = await storageClient.read(storage_api.Key(
+        key: VSSPath.vehicleHmiTemperatureUnit, namespace: claraId));
     expect(readResponse.result, 'F');
-    readResponse = await storageClient.read(storage_api.Key(key: VSSPath. vehicleHmiPressureUnit, namespace: claraId));
+    readResponse = await storageClient.read(storage_api.Key(
+        key: VSSPath.vehicleHmiPressureUnit, namespace: claraId));
     expect(readResponse.result, 'PSI');
-  
+
     await storageClient.destroyDB();
   });
 }

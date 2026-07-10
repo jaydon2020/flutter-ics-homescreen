@@ -15,13 +15,15 @@ class AppLauncher {
   AppLauncher({required this.ref}) {
     aglShellChannel = ClientChannel('localhost',
         port: 14005,
-        options: const ChannelOptions(credentials: ChannelCredentials.insecure()));
+        options:
+            const ChannelOptions(credentials: ChannelCredentials.insecure()));
 
     aglShell = AglShellManagerServiceClient(aglShellChannel);
 
     appLauncherChannel = ClientChannel('localhost',
         port: 50052,
-        options: const ChannelOptions(credentials: ChannelCredentials.insecure()));
+        options:
+            const ChannelOptions(credentials: ChannelCredentials.insecure()));
     appLauncher = AppLauncherClient(appLauncherChannel);
   }
 
@@ -58,7 +60,10 @@ class AppLauncher {
         debugPrint("$info");
         // Existing icons are currently not usable, so leave blank for now
         apps.add(AppLauncherInfo(
-            id: info.id, name: info.name, icon: info.iconPath, internal: false));
+            id: info.id,
+            name: info.name,
+            icon: info.iconPath,
+            internal: false));
       }
       apps.sort((a, b) => a.name.compareTo(b.name));
 

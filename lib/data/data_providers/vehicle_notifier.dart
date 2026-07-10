@@ -105,11 +105,11 @@ class VehicleNotifier extends Notifier<Vehicle> {
           var fanSpeed = 0;
           if (value > 66) {
             fanSpeed = 3;
-          }
-          else if (value > 33) {
+          } else if (value > 33) {
             fanSpeed = 2;
+          } else if (value > 0) {
+            fanSpeed = 1;
           }
-          else if (value > 0) { fanSpeed = 1; }
           state = state.copyWith(fanSpeed: fanSpeed);
         }
         break;

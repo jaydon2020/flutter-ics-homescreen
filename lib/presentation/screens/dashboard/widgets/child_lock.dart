@@ -1,4 +1,3 @@
-
 import 'package:flutter_ics_homescreen/export.dart';
 
 class ChildLockLeft extends ConsumerWidget {
@@ -9,7 +8,7 @@ class ChildLockLeft extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isChildLockActiveLeft = ref.watch(
-      vehicleProvider.select((vehicle) => vehicle.isChildLockActiveLeft));
+        vehicleProvider.select((vehicle) => vehicle.isChildLockActiveLeft));
 
     return GestureDetector(
       onTap: () {
@@ -64,7 +63,7 @@ class ChildLockRight extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isChildLockActiveRight = ref.watch(
-      vehicleProvider.select((vehicle) => vehicle.isChildLockActiveRight));
+        vehicleProvider.select((vehicle) => vehicle.isChildLockActiveRight));
 
     return GestureDetector(
       onTap: () {
