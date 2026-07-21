@@ -20,8 +20,8 @@ class _BluetoothScanContentState extends ConsumerState<BluetoothScanContent> {
     super.initState();
     // Cache the notifier now while ref is still valid.
     _notifier = ref.read(bluetoothProvider.notifier);
-    // enterScanMode registers the BlueZ agent, sets pairable + discoverable,
-    // and starts discovery. The agent lifetime is tied to this page.
+    // The notifier owns the agent for its whole lifetime. Entering this page
+    // starts discovery and the two-minute scan timeout.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _notifier.enterScanMode();
     });

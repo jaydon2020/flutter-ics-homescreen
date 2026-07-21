@@ -344,8 +344,10 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
 
   // ── Scan mode lifecycle ────────────────────────────────────────────────────
 
-  /// Opens scan mode: registers the BlueZ agent, makes the host pairable and
-  /// discoverable, and starts device discovery.
+  /// Opens scan mode by starting discovery and its two-minute UI timeout.
+  ///
+  /// The agent remains registered for the notifier's whole lifetime. This
+  /// method does not change the adapter's Pairable or Discoverable properties.
   ///
   /// Safe to call while scan mode is already active (idempotent).
   Future<void> enterScanMode() async {
@@ -357,8 +359,9 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
     await _startDiscovery();
   }
 
-  /// Closes scan mode: stops discovery, unregisters the agent, and hides the
-  /// host. After this call BlueZ natively rejects all incoming pairing requests.
+  /// Closes scan mode by stopping discovery and dismissing any pending request.
+  /// The registered agent remains active so app-level policy can reject or
+  /// disconnect external requests while the Bluetooth pages are not open.
   ///
   /// [timedOut] is `true` only when called from the 2-minute scan timer;
   /// `false` when the page is closed normally.
