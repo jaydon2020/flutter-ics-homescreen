@@ -18,29 +18,14 @@ class SettingsTile extends ConsumerStatefulWidget {
 }
 
 class SettingsTileState extends ConsumerState<SettingsTile> {
-  bool isSwitchOn = true;
   @override
   Widget build(BuildContext context) {
     final signal = ref.watch(signalsProvider.select((signal) => signal));
-    final bluetoothState = widget.title == 'Bluetooth'
-        ? ref.watch(bluetoothProvider)
-        : null;
+    final bluetoothState =
+        widget.title == 'Bluetooth' ? ref.watch(bluetoothProvider) : null;
+    var isSwitchOn = true;
     if (widget.title == 'Bluetooth') {
-      isSwitchOn = bluetoothState!.powered;
-      ref.listen<String?>(bluetoothProvider.select((state) => state.error), (
-        previous,
-        next,
-      ) {
-        if (next == null || next == previous) return;
-        if (!ref.read(appConfigProvider).showBluetoothErrors) {
-          ref.read(bluetoothProvider.notifier).clearError();
-          return;
-        }
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(next)));
-        ref.read(bluetoothProvider.notifier).clearError();
-      });
+      isSwitchOn = bluetoothState?.powered ?? false;
     } else if (widget.title == 'Wifi') {
       isSwitchOn = signal.isWifiConnected;
     } else {

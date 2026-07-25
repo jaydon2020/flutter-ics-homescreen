@@ -42,21 +42,6 @@ class _BluetoothScanContentState extends ConsumerState<BluetoothScanContent> {
     final state = ref.watch(bluetoothProvider);
     final devices = state.unpairedDevices;
 
-    ref.listen<String?>(bluetoothProvider.select((value) => value.error), (
-      previous,
-      next,
-    ) {
-      if (next == null || next == previous) return;
-      if (!ref.read(appConfigProvider).showBluetoothErrors) {
-        ref.read(bluetoothProvider.notifier).clearError();
-        return;
-      }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(next)));
-      ref.read(bluetoothProvider.notifier).clearError();
-    });
-
     return Column(
       children: [
         CommonTitle(

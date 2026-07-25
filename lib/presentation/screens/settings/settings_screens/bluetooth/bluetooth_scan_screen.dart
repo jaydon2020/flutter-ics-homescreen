@@ -11,6 +11,21 @@ class BluetoothScanPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<String?>(bluetoothProvider.select((state) => state.error), (
+      previous,
+      next,
+    ) {
+      if (next == null || next == previous) return;
+      if (!ref.read(appConfigProvider).showBluetoothErrors) {
+        ref.read(bluetoothProvider.notifier).clearError();
+        return;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(next)));
+      ref.read(bluetoothProvider.notifier).clearError();
+    });
+
     return const Scaffold(
       body: Stack(
         children: [BluetoothScanContent(), BluetoothPairingRequest()],

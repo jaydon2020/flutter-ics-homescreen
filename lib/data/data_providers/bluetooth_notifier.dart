@@ -190,6 +190,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
       _publishDevices();
       unawaited(_enforceInitialSingleConnection());
     } catch (e) {
+      _initialization = null;
       state = state.copyWith(error: 'Bluetooth is unavailable: $e');
     }
   }
@@ -417,7 +418,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
     try {
       await _stopDiscovery();
       if (!device.paired) await device.pair();
-      if (!device.trusted) await device.setTrusted(true);
+      if (!device.trusted) await device.setTrust(true);
 
       // If another device is already connected, ask user before switching.
       // The device is now paired — the switch dialog only needs to handle
@@ -577,7 +578,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
         }
         if (!target.paired) await target.pair();
       }
-      if (!target.trusted) await target.setTrusted(true);
+      if (!target.trusted) await target.setTrust(true);
 
       if (!target.connected) {
         await _waitForDeviceState(

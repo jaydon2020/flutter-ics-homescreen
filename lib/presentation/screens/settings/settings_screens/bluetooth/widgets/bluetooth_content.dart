@@ -12,18 +12,6 @@ class BluetoothContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final btState = ref.watch(bluetoothProvider);
 
-    ref.listen<String?>(bluetoothProvider.select((s) => s.error), (_, next) {
-      if (next == null) return;
-      if (!ref.read(appConfigProvider).showBluetoothErrors) {
-        ref.read(bluetoothProvider.notifier).clearError();
-        return;
-      }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(next)));
-      ref.read(bluetoothProvider.notifier).clearError();
-    });
-
     return Column(
       children: [
         CommonTitle(
@@ -81,11 +69,11 @@ class _PairedDeviceTile extends ConsumerWidget {
   final BluetoothOperation? operation;
 
   String get _statusLabel => switch (operation) {
-    BluetoothOperation.disconnecting => 'Disconnecting...',
-    BluetoothOperation.removing => 'Removing...',
-    BluetoothOperation.switching => 'Switching...',
-    _ => 'Connecting...',
-  };
+        BluetoothOperation.disconnecting => 'Disconnecting...',
+        BluetoothOperation.removing => 'Removing...',
+        BluetoothOperation.switching => 'Switching...',
+        _ => 'Connecting...',
+      };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -119,9 +107,8 @@ class _PairedDeviceTile extends ConsumerWidget {
                 child: Text(
                   bluetoothDeviceName(device),
                   style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : AGLDemoColors.periwinkleColor,
+                    color:
+                        selected ? Colors.white : AGLDemoColors.periwinkleColor,
                     fontSize: 40,
                   ),
                 ),
