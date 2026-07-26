@@ -60,6 +60,10 @@ dependencies:
   mime: ^2.0.0
   bluez_native: ^0.3.1
 
+dependency_overrides:
+  code_assets: 1.1.0
+  hooks: 2.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
