@@ -1,5 +1,5 @@
-import 'package:dart_mpd/dart_mpd.dart';
 import 'package:flutter_ics_homescreen/core/utils/helpers.dart';
+import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_media_notifier.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/audio_settings/widget/slider_widgets.dart';
 
@@ -15,7 +15,9 @@ String timeToString(Duration time) {
 }
 
 class MediaPlayerControls extends ConsumerStatefulWidget {
-  const MediaPlayerControls({super.key});
+  const MediaPlayerControls({super.key, this.bluetooth = false});
+
+  final bool bluetooth;
 
   @override
   ConsumerState<MediaPlayerControls> createState() =>
@@ -27,11 +29,28 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
   Widget build(BuildContext context) {
     var currentSong = ref.watch(
         mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.song));
+    final bluetoothMedia =
+        widget.bluetooth ? ref.watch(bluetoothMediaProvider) : null;
 
     String songName = "";
     String songDetail = "";
     Duration songLength = Duration.zero;
-    if (currentSong != null) {
+    Duration? songPosition;
+    if (bluetoothMedia != null) {
+      songName = bluetoothMedia.loading
+          ? 'Connecting to Bluetooth media…'
+          : !bluetoothMedia.connected
+          ? bluetoothMedia.error ?? 'No Bluetooth media connection'
+          : bluetoothMedia.title.isEmpty
+          ? 'Unknown track'
+          : bluetoothMedia.title;
+      songDetail = [
+        bluetoothMedia.artist,
+        bluetoothMedia.album,
+      ].where((value) => value.isNotEmpty).join(' • ');
+      songLength = bluetoothMedia.duration;
+      songPosition = bluetoothMedia.position;
+    } else if (currentSong != null) {
       songName = currentSong.title;
       songDetail = currentSong.artist;
       songLength = currentSong.duration;
@@ -49,8 +68,9 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
               fontSize: 44),
         ),
         MediaPlayerControlsDetails(songDetail: songDetail),
-        MediaPlayerControlsSlider(songLength: songLength),
-        const MediaPlayerControlsActions(),
+        MediaPlayerControlsSlider(
+            songLength: songLength, songPosition: songPosition),
+        MediaPlayerControlsActions(bluetooth: widget.bluetooth),
       ]),
     );
   }
@@ -123,19 +143,22 @@ class _MediaPlayerControlsDetailsState
 }
 
 class MediaPlayerControlsSlider extends ConsumerWidget {
-  const MediaPlayerControlsSlider({super.key, required this.songLength});
+  const MediaPlayerControlsSlider(
+      {super.key, required this.songLength, this.songPosition});
 
   final Duration songLength;
+  final Duration? songPosition;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    var songPosition = ref.watch(mediaPlayerPositionProvider);
+    Duration currentPosition =
+        songPosition ?? ref.watch(mediaPlayerPositionProvider);
 
     if (songLength == Duration.zero) {
-      songPosition = Duration.zero;
+      currentPosition = Duration.zero;
     }
     String songLengthString = timeToString(songLength);
-    String songPositionString = timeToString(songPosition);
+    String songPositionString = timeToString(currentPosition);
 
     return Column(children: [
       SizedBox(
@@ -153,18 +176,22 @@ class MediaPlayerControlsSlider extends ConsumerWidget {
           ),
           child: Slider(
             max: songLength.inMilliseconds.toDouble(),
-            value: songPosition.inMilliseconds.toDouble(),
+            value: currentPosition.inMilliseconds
+                .clamp(0, songLength.inMilliseconds)
+                .toDouble(),
             onChangeStart: (double value) {
               // Disable timer so position will not change while control is
               // being dragged.  It will be re-enabled via the playback state
               // update from MPD.
               ref.read(mediaPlayerPositionProvider.notifier).pause();
             },
-            onChanged: (double newValue) {
-              ref
-                  .read(mediaPlayerPositionProvider.notifier)
-                  .set(Duration(milliseconds: newValue.toInt()));
-            },
+            onChanged: songPosition != null
+                ? null
+                : (double newValue) {
+                    ref
+                        .read(mediaPlayerPositionProvider.notifier)
+                        .set(Duration(milliseconds: newValue.toInt()));
+                  },
             onChangeEnd: (double newValue) {
               ref.read(mpdClientProvider).seek(newValue.toInt());
             },
@@ -204,7 +231,9 @@ class MediaPlayerControlsSlider extends ConsumerWidget {
 }
 
 class MediaPlayerControlsActions extends ConsumerStatefulWidget {
-  const MediaPlayerControlsActions({super.key});
+  const MediaPlayerControlsActions({super.key, this.bluetooth = false});
+
+  final bool bluetooth;
 
   @override
   ConsumerState<MediaPlayerControlsActions> createState() =>
@@ -217,18 +246,25 @@ class _MediaPlayerControlsActionsState
 
   @override
   Widget build(BuildContext context) {
-    bool isPlaying = ref.watch(mediaPlayerStateProvider
-            .select((mediaplayer) => mediaplayer.playState)) ==
-        PlayState.playing;
+    final bluetoothMedia =
+        widget.bluetooth ? ref.watch(bluetoothMediaProvider) : null;
+    final isPlaying = bluetoothMedia != null
+        ? bluetoothMedia.playState == PlayState.playing
+        : ref.watch(mediaPlayerStateProvider
+                .select((mediaplayer) => mediaplayer.playState)) ==
+            PlayState.playing;
+    final enabled = bluetoothMedia?.connected ?? true;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         InkWell(
             customBorder: const CircleBorder(),
-            onTap: () {
-              ref.read(mpdClientProvider).previous();
-            },
+            onTap: enabled
+                ? () => widget.bluetooth
+                    ? ref.read(bluetoothMediaProvider.notifier).previous()
+                    : ref.read(mpdClientProvider).previous()
+                : null,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: SvgPicture.asset(
@@ -241,23 +277,19 @@ class _MediaPlayerControlsActionsState
         ),
         InkWell(
             customBorder: const CircleBorder(),
-            onTap: () {
-              if (isPlaying) {
-                ref.read(mpdClientProvider).pause();
-              } else {
-                ref.read(mpdClientProvider).play();
-              }
-            },
-            onTapDown: (details) {
-              setState(() {
-                isPressed = true;
-              });
-            },
-            onTapUp: (details) {
-              setState(() {
-                isPressed = false;
-              });
-            },
+            onTap: enabled
+                ? () => widget.bluetooth
+                    ? ref.read(bluetoothMediaProvider.notifier).playPause()
+                    : isPlaying
+                        ? ref.read(mpdClientProvider).pause()
+                        : ref.read(mpdClientProvider).play()
+                : null,
+            onTapDown: enabled
+                ? (details) => setState(() => isPressed = true)
+                : null,
+            onTapUp: enabled
+                ? (details) => setState(() => isPressed = false)
+                : null,
             child: Container(
               width: 64,
               height: 64,
@@ -277,9 +309,11 @@ class _MediaPlayerControlsActionsState
         ),
         InkWell(
             customBorder: const CircleBorder(),
-            onTap: () {
-              ref.read(mpdClientProvider).next();
-            },
+            onTap: enabled
+                ? () => widget.bluetooth
+                    ? ref.read(bluetoothMediaProvider.notifier).next()
+                    : ref.read(mpdClientProvider).next()
+                : null,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: SvgPicture.asset(
