@@ -31,6 +31,8 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
         mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.song));
     final bluetoothMedia =
         widget.bluetooth ? ref.watch(bluetoothMediaProvider) : null;
+    final showBluetoothErrors = widget.bluetooth &&
+        ref.watch(appConfigProvider).showBluetoothErrors;
 
     String songName = "";
     String songDetail = "";
@@ -40,7 +42,9 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
       songName = bluetoothMedia.loading
           ? 'Connecting to Bluetooth media…'
           : !bluetoothMedia.connected
-          ? bluetoothMedia.error ?? 'No Bluetooth media connection'
+          ? showBluetoothErrors && bluetoothMedia.error != null
+              ? bluetoothMedia.error!
+              : 'No Bluetooth media connection'
           : bluetoothMedia.title.isEmpty
           ? 'Unknown track'
           : bluetoothMedia.title;
@@ -67,7 +71,8 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
               shadows: [Helpers.dropShadowRegular],
               fontSize: 44),
         ),
-        MediaPlayerControlsDetails(songDetail: songDetail),
+        MediaPlayerControlsDetails(
+            songDetail: songDetail, bluetooth: widget.bluetooth),
         MediaPlayerControlsSlider(
             songLength: songLength, songPosition: songPosition),
         MediaPlayerControlsActions(bluetooth: widget.bluetooth),
@@ -76,21 +81,31 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
   }
 }
 
-class MediaPlayerControlsDetails extends StatefulWidget {
-  const MediaPlayerControlsDetails({super.key, required this.songDetail});
+class MediaPlayerControlsDetails extends ConsumerStatefulWidget {
+  const MediaPlayerControlsDetails(
+      {super.key, required this.songDetail, this.bluetooth = false});
+
   final String songDetail;
+  final bool bluetooth;
 
   @override
-  State<MediaPlayerControlsDetails> createState() =>
+  ConsumerState<MediaPlayerControlsDetails> createState() =>
       _MediaPlayerControlsDetailsState();
 }
 
 class _MediaPlayerControlsDetailsState
-    extends State<MediaPlayerControlsDetails> {
+    extends ConsumerState<MediaPlayerControlsDetails> {
   bool isShuffleEnabled = false;
   bool isRepeatEnabled = false;
   @override
   Widget build(BuildContext context) {
+    final bluetoothMedia =
+        widget.bluetooth ? ref.watch(bluetoothMediaProvider) : null;
+    final shuffleEnabled =
+        bluetoothMedia?.shuffleEnabled ?? isShuffleEnabled;
+    final repeatEnabled = bluetoothMedia?.repeatEnabled ?? isRepeatEnabled;
+    final enabled = bluetoothMedia?.connected ?? true;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -111,28 +126,33 @@ class _MediaPlayerControlsDetailsState
           children: [
             InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () {
-                  setState(() {
-                    isShuffleEnabled = !isShuffleEnabled;
-                  });
-                },
+                onTap: enabled
+                    ? () => widget.bluetooth
+                        ? ref
+                            .read(bluetoothMediaProvider.notifier)
+                            .toggleShuffle()
+                        : setState(
+                            () => isShuffleEnabled = !isShuffleEnabled)
+                    : null,
                 child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: SvgPicture.asset(
-                      "assets/${isShuffleEnabled ? "ShufflePressed.svg" : "Shuffle.svg"}",
+                      "assets/${shuffleEnabled ? "ShufflePressed.svg" : "Shuffle.svg"}",
                       width: 48,
                     ))),
             InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () {
-                  setState(() {
-                    isRepeatEnabled = !isRepeatEnabled;
-                  });
-                },
+                onTap: enabled
+                    ? () => widget.bluetooth
+                        ? ref
+                            .read(bluetoothMediaProvider.notifier)
+                            .toggleRepeat()
+                        : setState(() => isRepeatEnabled = !isRepeatEnabled)
+                    : null,
                 child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: SvgPicture.asset(
-                      "assets/${isRepeatEnabled ? "RepeatPressed.svg" : "Repeat.svg"}",
+                      "assets/${repeatEnabled ? "RepeatPressed.svg" : "Repeat.svg"}",
                       width: 48,
                     ))),
           ],

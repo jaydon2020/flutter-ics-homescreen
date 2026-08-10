@@ -20,6 +20,9 @@ parseBluetoothTrack(Iterable<BlueZMediaProperty> track) {
   );
 }
 
+bool bluetoothMediaModeEnabled(String mode) =>
+    mode.isNotEmpty && mode.toLowerCase() != 'off';
+
 class BluetoothMediaState {
   const BluetoothMediaState({
     this.loading = true,
@@ -30,6 +33,8 @@ class BluetoothMediaState {
     this.duration = Duration.zero,
     this.position = Duration.zero,
     this.playState = PlayState.stopped,
+    this.shuffleEnabled = false,
+    this.repeatEnabled = false,
     this.error,
   });
 
@@ -41,6 +46,8 @@ class BluetoothMediaState {
   final Duration duration;
   final Duration position;
   final PlayState playState;
+  final bool shuffleEnabled;
+  final bool repeatEnabled;
   final String? error;
 }
 
@@ -126,6 +133,8 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
           duration: state.duration,
           position: state.position,
           playState: state.playState,
+          shuffleEnabled: state.shuffleEnabled,
+          repeatEnabled: state.repeatEnabled,
           error: 'Unable to read Bluetooth media: $error',
         );
       }
@@ -148,6 +157,8 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
       album: track.album,
       duration: track.duration,
       position: Duration(milliseconds: player.position),
+      shuffleEnabled: bluetoothMediaModeEnabled(player.shuffle),
+      repeatEnabled: bluetoothMediaModeEnabled(player.repeat),
       playState: switch (player.status.toLowerCase()) {
         'playing' => PlayState.playing,
         'paused' => PlayState.paused,
@@ -172,6 +183,14 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
 
   void previous() => _run((player) => player.previous());
 
+  void toggleShuffle() => _run(
+    (player) => player.setShuffle(state.shuffleEnabled ? 'off' : 'alltracks'),
+  );
+
+  void toggleRepeat() => _run(
+    (player) => player.setRepeat(state.repeatEnabled ? 'off' : 'singletrack'),
+  );
+
   void _run(void Function(BluezMediaPlayer player) command) {
     final player = _player;
     if (player == null) return;
@@ -189,6 +208,8 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
         duration: state.duration,
         position: state.position,
         playState: state.playState,
+        shuffleEnabled: state.shuffleEnabled,
+        repeatEnabled: state.repeatEnabled,
         error: 'Bluetooth media command failed: $error',
       );
     }

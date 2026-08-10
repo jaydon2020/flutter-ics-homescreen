@@ -16,4 +16,11 @@ void main() {
     expect(metadata.album, 'Blue Train');
     expect(metadata.duration, const Duration(milliseconds: 64500));
   });
+
+  test('maps BlueZ repeat and shuffle modes', () {
+    expect(bluetoothMediaModeEnabled('off'), isFalse);
+    expect(bluetoothMediaModeEnabled(''), isFalse);
+    expect(bluetoothMediaModeEnabled('singletrack'), isTrue);
+    expect(bluetoothMediaModeEnabled('alltracks'), isTrue);
+  });
 }
