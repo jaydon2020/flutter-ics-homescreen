@@ -63,23 +63,6 @@ class Media extends ConsumerStatefulWidget {
 }
 
 class _MediaState extends ConsumerState<Media> {
-  @override
-  void initState() {
-    // Set initial source so external control (like the volume bar button)
-    // will work from the start.
-    var navState = ref.read(mediaNavStateProvider);
-    switch (navState) {
-      case MediaNavState.fm:
-        ref.read(playControllerProvider).setSource(PlaySource.radio);
-        break;
-      case MediaNavState.media:
-      default:
-        ref.read(playControllerProvider).setSource(PlaySource.media);
-        break;
-    }
-    super.initState();
-  }
-
   onPressed(MediaNavState type) {
     if (type == MediaNavState.fm) {
       ref.read(mediaNavStateProvider.notifier).set(MediaNavState.fm);

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bluez_media_native/bluez_media_native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mediaplayer_state.dart';
@@ -23,6 +25,11 @@ parseBluetoothTrack(Iterable<BlueZMediaProperty> track) {
 bool bluetoothMediaModeEnabled(String mode) =>
     mode.isNotEmpty && mode.toLowerCase() != 'off';
 
+double bluetoothVolumePercent(int volume) => volume.clamp(0, 127) * 100 / 127;
+
+int bluetoothVolumeValue(double percent) =>
+    (percent.clamp(0, 100) * 127 / 100).round();
+
 class BluetoothMediaState {
   const BluetoothMediaState({
     this.loading = true,
@@ -35,6 +42,9 @@ class BluetoothMediaState {
     this.playState = PlayState.stopped,
     this.shuffleEnabled = false,
     this.repeatEnabled = false,
+    this.coverArt,
+    this.phoneVolume = 0,
+    this.phoneVolumeAvailable = false,
     this.error,
   });
 
@@ -48,6 +58,9 @@ class BluetoothMediaState {
   final PlayState playState;
   final bool shuffleEnabled;
   final bool repeatEnabled;
+  final Uint8List? coverArt;
+  final double phoneVolume;
+  final bool phoneVolumeAvailable;
   final String? error;
 }
 
@@ -58,8 +71,12 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
 
   BluezMediaClient? _client;
   BluezMediaPlayer? _player;
+  BluezMediaTransport? _transport;
   Timer? _refreshTimer;
   final _subscriptions = <String, StreamSubscription<List<String>>>{};
+  Directory? _coverArtDirectory;
+  String? _trackKey;
+  String? _coverArtRequestedTrackKey;
   bool _refreshing = false;
   bool _disposed = false;
 
@@ -90,9 +107,10 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
     _refreshing = true;
 
     try {
-      final paths = client.getManagedObjects().players;
-      final players = paths.map(client.player).toList();
-      final activePaths = paths.toSet();
+      final objects = client.getManagedObjects();
+      final players = objects.players.map(client.player).toList();
+      final transports = objects.transports.map(client.transport).toList();
+      final activePaths = {...objects.players, ...objects.transports};
 
       for (final entry in _subscriptions.entries.toList()) {
         if (!activePaths.contains(entry.key)) {
@@ -108,9 +126,22 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
         );
         player.refresh();
       }
+      for (final transport in transports) {
+        _subscriptions.putIfAbsent(
+          transport.objectPath,
+          () => transport.propertiesChanged.listen((_) {
+            if (transport.objectPath == _transport?.objectPath &&
+                _player != null) {
+              _publish(_player!);
+            }
+          }),
+        );
+        transport.refresh();
+      }
 
       if (players.isEmpty) {
         _player = null;
+        _transport = null;
         state = const BluetoothMediaState(loading: false);
         return;
       }
@@ -121,6 +152,14 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
               .where((player) => player.objectPath == _player?.objectPath)
               .firstOrNull ??
           players.first;
+      final deviceTransports = transports
+          .where((transport) => transport.device == _player!.device)
+          .toList();
+      _transport =
+          deviceTransports
+              .where((transport) => transport.state == 'active')
+              .firstOrNull ??
+          deviceTransports.firstOrNull;
       _publish(_player!);
     } catch (error) {
       if (!_disposed) {
@@ -135,6 +174,9 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
           playState: state.playState,
           shuffleEnabled: state.shuffleEnabled,
           repeatEnabled: state.repeatEnabled,
+          coverArt: state.coverArt,
+          phoneVolume: state.phoneVolume,
+          phoneVolumeAvailable: state.phoneVolumeAvailable,
           error: 'Unable to read Bluetooth media: $error',
         );
       }
@@ -148,6 +190,16 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
     if (_player != null && player.objectPath != _player!.objectPath) return;
 
     final track = parseBluetoothTrack(player.track);
+    final trackKey = [
+      track.title,
+      track.artist,
+      track.album,
+      track.duration.inMilliseconds,
+      player.imageHandle,
+    ].join('\u001f');
+    final trackChanged = trackKey != _trackKey;
+    _trackKey = trackKey;
+    final transport = _transport;
 
     state = BluetoothMediaState(
       loading: false,
@@ -159,11 +211,65 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
       position: Duration(milliseconds: player.position),
       shuffleEnabled: bluetoothMediaModeEnabled(player.shuffle),
       repeatEnabled: bluetoothMediaModeEnabled(player.repeat),
+      coverArt: trackChanged ? null : state.coverArt,
+      phoneVolume: transport == null
+          ? 0
+          : bluetoothVolumePercent(transport.volume),
+      phoneVolumeAvailable: transport != null,
       playState: switch (player.status.toLowerCase()) {
         'playing' => PlayState.playing,
         'paused' => PlayState.paused,
         _ => PlayState.stopped,
       },
+    );
+
+    if (player.obexPort != 0 &&
+        player.imageHandle.isNotEmpty &&
+        _coverArtRequestedTrackKey != trackKey) {
+      _coverArtRequestedTrackKey = trackKey;
+      unawaited(_loadCoverArt(player, trackKey));
+    }
+  }
+
+  Future<void> _loadCoverArt(BluezMediaPlayer player, String trackKey) async {
+    Directory? directory;
+    try {
+      directory = await Directory.systemTemp.createTemp('bluez_media_art_');
+      final path = await player.getCoverArt('${directory.path}/cover-art');
+      final bytes = await File(path).readAsBytes();
+      if (_disposed || trackKey != _trackKey) {
+        await directory.delete(recursive: true);
+        return;
+      }
+
+      final previous = _coverArtDirectory;
+      _coverArtDirectory = directory;
+      _setCoverArt(bytes);
+      if (previous != null) unawaited(previous.delete(recursive: true));
+    } catch (error) {
+      if (directory != null && await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+      debugPrint('Bluetooth cover art unavailable: $error');
+    }
+  }
+
+  void _setCoverArt(Uint8List coverArt) {
+    state = BluetoothMediaState(
+      loading: state.loading,
+      connected: state.connected,
+      title: state.title,
+      artist: state.artist,
+      album: state.album,
+      duration: state.duration,
+      position: state.position,
+      playState: state.playState,
+      shuffleEnabled: state.shuffleEnabled,
+      repeatEnabled: state.repeatEnabled,
+      coverArt: coverArt,
+      phoneVolume: state.phoneVolume,
+      phoneVolumeAvailable: state.phoneVolumeAvailable,
+      error: state.error,
     );
   }
 
@@ -191,6 +297,17 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
     (player) => player.setRepeat(state.repeatEnabled ? 'off' : 'singletrack'),
   );
 
+  void setPhoneVolume(double value) {
+    final transport = _transport;
+    if (transport == null) return;
+    try {
+      transport.volume = bluetoothVolumeValue(value);
+      if (_player != null) _publish(_player!);
+    } catch (error) {
+      _setError('Bluetooth volume command failed: $error');
+    }
+  }
+
   void _run(void Function(BluezMediaPlayer player) command) {
     final player = _player;
     if (player == null) return;
@@ -199,20 +316,27 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
       player.refresh();
       _publish(player);
     } catch (error) {
-      state = BluetoothMediaState(
-        loading: false,
-        connected: true,
-        title: state.title,
-        artist: state.artist,
-        album: state.album,
-        duration: state.duration,
-        position: state.position,
-        playState: state.playState,
-        shuffleEnabled: state.shuffleEnabled,
-        repeatEnabled: state.repeatEnabled,
-        error: 'Bluetooth media command failed: $error',
-      );
+      _setError('Bluetooth media command failed: $error');
     }
+  }
+
+  void _setError(String error) {
+    state = BluetoothMediaState(
+      loading: false,
+      connected: state.connected,
+      title: state.title,
+      artist: state.artist,
+      album: state.album,
+      duration: state.duration,
+      position: state.position,
+      playState: state.playState,
+      shuffleEnabled: state.shuffleEnabled,
+      repeatEnabled: state.repeatEnabled,
+      coverArt: state.coverArt,
+      phoneVolume: state.phoneVolume,
+      phoneVolumeAvailable: state.phoneVolumeAvailable,
+      error: error,
+    );
   }
 
   @override
@@ -225,6 +349,10 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
     final client = _client;
     _client = null;
     client?.close();
+    final coverArtDirectory = _coverArtDirectory;
+    if (coverArtDirectory != null) {
+      unawaited(coverArtDirectory.delete(recursive: true));
+    }
     super.dispose();
   }
 }

@@ -48,10 +48,7 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
           : bluetoothMedia.title.isEmpty
           ? 'Unknown track'
           : bluetoothMedia.title;
-      songDetail = [
-        bluetoothMedia.artist,
-        bluetoothMedia.album,
-      ].where((value) => value.isNotEmpty).join(' • ');
+      songDetail = bluetoothMedia.artist;
       songLength = bluetoothMedia.duration;
       songPosition = bluetoothMedia.position;
     } else if (currentSong != null) {

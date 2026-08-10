@@ -23,4 +23,11 @@ void main() {
     expect(bluetoothMediaModeEnabled('singletrack'), isTrue);
     expect(bluetoothMediaModeEnabled('alltracks'), isTrue);
   });
+
+  test('converts BlueZ transport volume to the shared volume bar range', () {
+    expect(bluetoothVolumePercent(0), 0);
+    expect(bluetoothVolumePercent(127), 100);
+    expect(bluetoothVolumeValue(0), 0);
+    expect(bluetoothVolumeValue(100), 127);
+  });
 }

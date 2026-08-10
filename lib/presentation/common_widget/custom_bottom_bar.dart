@@ -1,6 +1,8 @@
 // ignore_for_file: prefer_const_constructors
 
 import '../../export.dart';
+import '../../data/data_providers/bluetooth_media_notifier.dart';
+import '../../data/data_providers/play_controller.dart';
 
 class SelectedNotifier extends Notifier<String> {
   @override
@@ -42,6 +44,13 @@ class CustomBottomBarState extends ConsumerState<CustomBottomBar> {
         status = AppState.hvac;
       case "Media":
         status = AppState.media;
+        final bluetoothConnected = ref.read(bluetoothMediaProvider).connected;
+        ref
+            .read(playControllerProvider)
+            .setSource(
+              bluetoothConnected ? PlaySource.bluetooth : PlaySource.media,
+            );
+        if (bluetoothConnected) ref.read(mpdClientProvider).pause();
       case "Settings":
         status = AppState.settings;
       case "Apps":

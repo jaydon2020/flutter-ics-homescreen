@@ -3,14 +3,17 @@ import 'bluetooth_media_notifier.dart';
 
 enum PlaySource { none, media, radio, bluetooth }
 
+final playSourceProvider = StateProvider<PlaySource>((ref) => PlaySource.media);
+
 class PlayController {
   final Ref ref;
-  PlaySource source = PlaySource.none;
 
   PlayController({required this.ref});
 
+  PlaySource get source => ref.read(playSourceProvider);
+
   void setSource(PlaySource newSource) {
-    source = newSource;
+    ref.read(playSourceProvider.notifier).state = newSource;
   }
 
   void play() async {
