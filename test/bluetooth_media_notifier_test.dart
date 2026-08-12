@@ -30,4 +30,10 @@ void main() {
     expect(bluetoothVolumeValue(0), 0);
     expect(bluetoothVolumeValue(100), 127);
   });
+
+  test('recognizes A2DP transports only', () {
+    expect(bluetoothA2dpUuid('0000110a-0000-1000-8000-00805f9b34fb'), isTrue);
+    expect(bluetoothA2dpUuid('0000110b-0000-1000-8000-00805f9b34fb'), isTrue);
+    expect(bluetoothA2dpUuid('0000111f-0000-1000-8000-00805f9b34fb'), isFalse);
+  });
 }

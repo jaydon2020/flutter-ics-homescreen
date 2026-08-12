@@ -17,14 +17,30 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
   String selectedNav = "USB";
   List<String> navItems = ["USB", "SD", "Bluetooth"];
   bool isPhoneVolumePressed = false;
+  bool _autoSelectBluetooth = true;
+  late final ProviderSubscription<BluetoothMediaState> _bluetoothSubscription;
 
   @override
   void initState() {
     super.initState();
-    if (ref.read(bluetoothMediaProvider).connected) selectedNav = 'Bluetooth';
+    _bluetoothSubscription = ref.listenManual(bluetoothMediaProvider, (
+      _,
+      next,
+    ) {
+      if (next.connected && _autoSelectBluetooth && mounted) {
+        _selectSource('Bluetooth', automatic: true);
+      }
+    }, fireImmediately: true);
   }
 
-  void _selectSource(String source) {
+  @override
+  void dispose() {
+    _bluetoothSubscription.close();
+    super.dispose();
+  }
+
+  void _selectSource(String source, {bool automatic = false}) {
+    if (!automatic) _autoSelectBluetooth = false;
     if (source == 'Bluetooth') {
       ref.read(mpdClientProvider).pause();
       ref.read(playControllerProvider).setSource(PlaySource.bluetooth);

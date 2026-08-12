@@ -30,6 +30,13 @@ double bluetoothVolumePercent(int volume) => volume.clamp(0, 127) * 100 / 127;
 int bluetoothVolumeValue(double percent) =>
     (percent.clamp(0, 100) * 127 / 100).round();
 
+bool bluetoothA2dpUuid(String uuid) =>
+    uuid.toLowerCase() == '0000110a-0000-1000-8000-00805f9b34fb' ||
+    uuid.toLowerCase() == '0000110b-0000-1000-8000-00805f9b34fb';
+
+bool isA2dpTransport(BluezMediaTransport transport) =>
+    bluetoothA2dpUuid(transport.uuid);
+
 class BluetoothMediaState {
   const BluetoothMediaState({
     this.loading = true,
@@ -156,6 +163,7 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
           players.first;
       final deviceTransports = transports
           .where((transport) => transport.device == _player!.device)
+          .where(isA2dpTransport)
           .toList();
       _transport =
           deviceTransports
@@ -205,7 +213,7 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
 
     state = BluetoothMediaState(
       loading: false,
-      connected: true,
+      connected: transport?.state == 'active',
       title: track.title,
       artist: track.artist,
       album: track.album,
@@ -217,7 +225,7 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
       phoneVolume: transport == null
           ? 0
           : bluetoothVolumePercent(transport.volume),
-      phoneVolumeAvailable: transport != null,
+      phoneVolumeAvailable: transport?.state == 'active',
       playState: switch (player.status.toLowerCase()) {
         'playing' => PlayState.playing,
         'paused' => PlayState.paused,

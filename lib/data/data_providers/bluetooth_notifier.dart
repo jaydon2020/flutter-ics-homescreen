@@ -204,7 +204,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
     switch (request.requestType) {
       case AgentRequestType.authorizeService:
         if (device == null) {
-          _client.agentRespond(request.requestId, accepted: false);
+          _client.agentRespond(request.requestId, accepted: state.scanning);
           return;
         }
         if (isBusyDevice) {
@@ -215,15 +215,15 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
           state = state.copyWith(pairingRequest: request);
           return;
         }
-        _client.agentRespond(
-          request.requestId,
-          accepted: device.paired,
-        );
+        _client.agentRespond(request.requestId, accepted: device.paired);
       case AgentRequestType.cancel:
       case AgentRequestType.release:
         print(
             'Bluetooth: Agent request cancelled by BlueZ (type: ${request.requestType}) for ${device?.address}');
         state = state.copyWith(clearPairingRequest: true);
+        return;
+      case AgentRequestType.displayPinCode:
+      case AgentRequestType.displayPasskey:
         return;
       default:
         if (!state.scanning && !isBusyDevice) {
@@ -252,17 +252,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
         !wasConnected &&
         state.pairingRequest == null &&
         state.busyAddress != device.address) {
-      if (!_isOnBluetoothPage) {
-        // Connection was not initiated from AGL's BT page — disconnect it
-        // silently rather than showing a switch dialog or allowing it.
-        print(
-            'Bluetooth: Disconnecting external connection from ${device.address} (not on BT page)');
-        unawaited(device.disconnect());
-        _connectedAddresses.remove(device.address);
-        _publishDevices();
-        return;
-      }
-      if (_connectedDeviceExcept(device) != null) {
+      if (_isOnBluetoothPage && _connectedDeviceExcept(device) != null) {
         unawaited(_stageIncomingDeviceSwitch(device));
       }
     }
@@ -440,7 +430,6 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
         error: 'Unable to connect to ${bluetoothDeviceName(device)}: $e',
         clearPairingRequest: true,
       );
-      await _cleanupFailedPairing(device);
       // Restart discovery so the scan page recovers its 2-minute timer
       // and device list instead of sitting idle with no timeout/rescan.
       await _startDiscovery();
@@ -511,23 +500,14 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
     print(
         'Bluetooth: respondToPairing for ${device?.address}, accepted: $accepted');
 
-    switch (request.requestType) {
-      case AgentRequestType.displayPinCode:
-      case AgentRequestType.displayPasskey:
-        if (!accepted) {
-          await _cleanupFailedPairing(device);
-          await _startDiscovery();
-        }
-      default:
-        _client.agentRespond(
-          request.requestId,
-          accepted: accepted,
-          response: response,
-        );
-        if (!accepted) {
-          await _cleanupFailedPairing(device, cancelPairing: false);
-          await _startDiscovery();
-        }
+    _client.agentRespond(
+      request.requestId,
+      accepted: accepted,
+      response: response,
+    );
+    if (!accepted) {
+      await _cleanupFailedPairing(device, cancelPairing: false);
+      await _startDiscovery();
     }
     state = state.copyWith(clearPairingRequest: true);
   }
