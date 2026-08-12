@@ -142,6 +142,8 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
       if (players.isEmpty) {
         _player = null;
         _transport = null;
+        _trackKey = null;
+        _coverArtRequestedTrackKey = null;
         state = const BluetoothMediaState(loading: false);
         return;
       }
@@ -273,17 +275,50 @@ class BluetoothMediaNotifier extends StateNotifier<BluetoothMediaState> {
     );
   }
 
-  void playPause() => _run((player) {
-    if (state.playState == PlayState.playing) {
-      player.pause();
-    } else {
-      player.play();
-    }
-  });
+  void playPause() => _setPlayback(state.playState != PlayState.playing);
 
-  void play() => _run((player) => player.play());
+  void play() => _setPlayback(true);
 
-  void pause() => _run((player) => player.pause());
+  void pause() => _setPlayback(false);
+
+  void _setPlayback(bool playing) {
+    final player = _player;
+    if (player == null) return;
+    final previous = state.playState;
+    final next = playing ? PlayState.playing : PlayState.paused;
+    _setPlayState(next);
+
+    Future.delayed(const Duration(milliseconds: 20), () {
+      if (_disposed || _player?.objectPath != player.objectPath) return;
+      try {
+        playing ? player.play() : player.pause();
+        player.refresh();
+        _publish(player);
+      } catch (error) {
+        _setPlayState(previous);
+        _setError('Bluetooth media command failed: $error');
+      }
+    });
+  }
+
+  void _setPlayState(PlayState playState) {
+    state = BluetoothMediaState(
+      loading: state.loading,
+      connected: state.connected,
+      title: state.title,
+      artist: state.artist,
+      album: state.album,
+      duration: state.duration,
+      position: state.position,
+      playState: playState,
+      shuffleEnabled: state.shuffleEnabled,
+      repeatEnabled: state.repeatEnabled,
+      coverArt: state.coverArt,
+      phoneVolume: state.phoneVolume,
+      phoneVolumeAvailable: state.phoneVolumeAvailable,
+      error: state.error,
+    );
+  }
 
   void next() => _run((player) => player.next());
 
