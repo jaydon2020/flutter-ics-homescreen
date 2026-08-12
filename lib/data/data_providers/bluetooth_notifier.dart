@@ -211,27 +211,19 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
           _client.agentRespond(request.requestId, accepted: true);
           return;
         }
-        if (!_isOnBluetoothPage) {
-          // Device connected from outside AGL (e.g. from the phone's BT
-          // settings) while the BT page is not open — reject the service.
-          print(
-              'Bluetooth: Rejecting external service auth for ${device.address} (not on BT page)');
-          _client.agentRespond(request.requestId, accepted: false);
-          return;
-        }
         if (_connectedDeviceExcept(device) != null) {
           state = state.copyWith(pairingRequest: request);
           return;
         }
-        _client.agentRespond(request.requestId, accepted: device.paired);
+        _client.agentRespond(
+          request.requestId,
+          accepted: device.paired,
+        );
       case AgentRequestType.cancel:
       case AgentRequestType.release:
         print(
             'Bluetooth: Agent request cancelled by BlueZ (type: ${request.requestType}) for ${device?.address}');
         state = state.copyWith(clearPairingRequest: true);
-        unawaited(_cleanupFailedPairing(device, isAgentCancel: true));
-        // Restart discovery so the scan page doesn't get stuck.
-        unawaited(_startDiscovery());
         return;
       default:
         if (!state.scanning && !isBusyDevice) {
@@ -448,7 +440,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
         error: 'Unable to connect to ${bluetoothDeviceName(device)}: $e',
         clearPairingRequest: true,
       );
-      await _cleanupFailedPairing(device, isAgentCancel: false);
+      await _cleanupFailedPairing(device);
       // Restart discovery so the scan page recovers its 2-minute timer
       // and device list instead of sitting idle with no timeout/rescan.
       await _startDiscovery();
@@ -523,7 +515,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
       case AgentRequestType.displayPinCode:
       case AgentRequestType.displayPasskey:
         if (!accepted) {
-          await _cleanupFailedPairing(device, isAgentCancel: false);
+          await _cleanupFailedPairing(device);
           await _startDiscovery();
         }
       default:
@@ -598,7 +590,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
         state = state.copyWith(clearPairingRequest: true);
         await _cleanupFailedPairing(target, cancelPairing: false);
       } else {
-        await _cleanupFailedPairing(target, isAgentCancel: false);
+        await _cleanupFailedPairing(target);
       }
       if (!current.connected) {
         try {
@@ -638,12 +630,11 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
 
   Future<void> _cleanupFailedPairing(
     BlueZDevice? device, {
-    bool isAgentCancel = false,
     bool cancelPairing = true,
   }) async {
     if (device == null) return;
 
-    if (!isAgentCancel && cancelPairing) {
+    if (cancelPairing) {
       try {
         await device.cancelPairing();
       } catch (e) {

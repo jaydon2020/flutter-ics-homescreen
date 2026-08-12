@@ -38,7 +38,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: c71fab3a1cb3af0caba68578368d3fc1b46d108d
+      resolved-ref: eb4b1f71e8f52b0d042b138889dbdf48cb86aca6
       url: "https://github.com/jaydon2020/bluez_media_native.git"
     source: git
     version: "0.0.1"
