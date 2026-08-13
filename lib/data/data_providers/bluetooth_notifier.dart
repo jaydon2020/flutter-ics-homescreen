@@ -133,7 +133,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
       _client.adapters.isEmpty ? null : _client.adapters.first;
 
   /// True when the Bluetooth page (paired list) or Scan page is in the
-  /// foreground. Connections initiated externally are rejected when false.
+  /// foreground. Only there may the user choose to replace the active device.
   bool get _isOnBluetoothPage {
     final s = ref.read(appProvider);
     return s == AppState.bluetooth || s == AppState.bluetoothScan;
@@ -212,7 +212,14 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
           return;
         }
         if (_connectedDeviceExcept(device) != null) {
-          state = state.copyWith(pairingRequest: request);
+          if (_isOnBluetoothPage) {
+            state = state.copyWith(pairingRequest: request);
+          } else {
+            // Keep the current connection stable while driving. BlueZ has not
+            // connected the incoming device yet, so reject it before profiles
+            // such as A2DP/AVRCP can replace or disturb the active phone.
+            _client.agentRespond(request.requestId, accepted: false);
+          }
           return;
         }
         _client.agentRespond(request.requestId, accepted: device.paired);
@@ -252,8 +259,15 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
         !wasConnected &&
         state.pairingRequest == null &&
         state.busyAddress != device.address) {
-      if (_isOnBluetoothPage && _connectedDeviceExcept(device) != null) {
-        unawaited(_stageIncomingDeviceSwitch(device));
+      if (_connectedDeviceExcept(device) != null) {
+        if (_isOnBluetoothPage) {
+          unawaited(_stageIncomingDeviceSwitch(device));
+        } else {
+          // This is a fallback for profiles BlueZ connected without first
+          // asking the agent. Keep the pre-existing device, never switch the
+          // active phone away from the Bluetooth settings page.
+          unawaited(_disconnectIncomingDevice(device));
+        }
       }
     }
   }
@@ -261,7 +275,25 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
   Future<void> _enforceInitialSingleConnection() async {
     final connected = _devices.values.where((d) => d.connected).toList();
     if (connected.length < 2 || state.pairingRequest != null) return;
-    await _stageIncomingDeviceSwitch(connected.last);
+    if (_isOnBluetoothPage) {
+      await _stageIncomingDeviceSwitch(connected.last);
+      return;
+    }
+
+    // Preserve the first connection BlueZ reported at startup and remove any
+    // extras without opening a switch dialog outside Bluetooth settings.
+    for (final device in connected.skip(1)) {
+      await _disconnectIncomingDevice(device);
+    }
+  }
+
+  Future<void> _disconnectIncomingDevice(BlueZDevice device) async {
+    try {
+      await device.disconnect();
+    } catch (_) {
+      // A connection event can race BlueZ's own teardown; do not surface an
+      // error that would distract from the currently active device.
+    }
   }
 
   Future<void> _stageIncomingDeviceSwitch(BlueZDevice incoming) async {
@@ -399,7 +431,8 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
     );
     try {
       await _stopDiscovery();
-      if (!device.paired) await device.pair();
+      final newlyPaired = !device.paired;
+      if (newlyPaired) await device.pair();
       if (!device.trusted) await device.setTrust(true);
 
       // If another device is already connected, ask user before switching.
@@ -420,6 +453,11 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
       }
 
       if (!device.connected) await device.connect();
+      if (newlyPaired) {
+        await device.disconnect();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await device.connect();
+      }
       _connectedAddresses.add(device.address);
       _devices[device.address] = device;
       _publishDevices();

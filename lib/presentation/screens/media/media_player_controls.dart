@@ -62,6 +62,8 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(
           songName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w400,
@@ -107,16 +109,15 @@ class _MediaPlayerControlsDetailsState
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Text(
-              widget.songDetail,
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                  fontSize: 40,
-                  shadows: [Helpers.dropShadowRegular]),
-            ),
+          child: Text(
+            widget.songDetail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w400,
+                fontSize: 40,
+                shadows: [Helpers.dropShadowRegular]),
           ),
         ),
         Row(
