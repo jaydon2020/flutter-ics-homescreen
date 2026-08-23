@@ -15,7 +15,8 @@ enum BluetoothOperation { connecting, disconnecting, removing, switching }
 
 class BluetoothState {
   const BluetoothState({
-    this.devices = const [],
+    this.pairedDevices = const [],
+    this.discoveredDevices = const [],
     this.powered = false,
     this.changingPower = false,
     this.scanning = false,
@@ -28,7 +29,11 @@ class BluetoothState {
     this.error,
   });
 
-  final List<BlueZDevice> devices;
+  /// Devices BlueZ reports as paired. BlueZ persists these across boots.
+  final List<BlueZDevice> pairedDevices;
+
+  /// Unpaired devices seen during the current scan only.
+  final List<BlueZDevice> discoveredDevices;
   final bool powered;
   final bool changingPower;
   final bool scanning;
@@ -47,24 +52,11 @@ class BluetoothState {
   final BlueZAgentRequest? pairingRequest;
   final String? error;
 
-  // Derived lists ─────────────────────────────────────────────────────────────
-
-  /// Paired devices sorted: connected first, then alphabetically.
-  List<BlueZDevice> get pairedDevices => devices.where((d) => d.paired).toList()
-    ..sort((a, b) {
-      if (a.connected != b.connected) return a.connected ? -1 : 1;
-      return bluetoothDeviceName(a).compareTo(bluetoothDeviceName(b));
-    });
-
-  /// Unpaired discovered devices sorted by RSSI (strongest first).
-  List<BlueZDevice> get unpairedDevices =>
-      devices.where((d) => !d.paired).toList()
-        ..sort((a, b) => b.rssi.compareTo(a.rssi));
-
   // copyWith ──────────────────────────────────────────────────────────────────
 
   BluetoothState copyWith({
-    List<BlueZDevice>? devices,
+    List<BlueZDevice>? pairedDevices,
+    List<BlueZDevice>? discoveredDevices,
     bool? powered,
     bool? changingPower,
     bool? scanning,
@@ -80,7 +72,8 @@ class BluetoothState {
     bool clearError = false,
   }) {
     return BluetoothState(
-      devices: devices ?? this.devices,
+      pairedDevices: pairedDevices ?? this.pairedDevices,
+      discoveredDevices: discoveredDevices ?? this.discoveredDevices,
       powered: powered ?? this.powered,
       changingPower: changingPower ?? this.changingPower,
       scanning: scanning ?? this.scanning,
@@ -118,7 +111,10 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
   final Ref ref;
   final BlueZClient _client = BlueZClient();
   final Map<String, BlueZDevice> _devices = {};
+  final Set<String> _discoveredAddresses = {};
   final Set<String> _connectedAddresses = {};
+  String _pairedSignature = '';
+  String _discoveredSignature = '';
 
   Future<void>? _initialization;
   StreamSubscription<BlueZDevice>? _deviceAddedSub;
@@ -157,28 +153,34 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
 
       _deviceAddedSub = _client.deviceAdded.listen((device) {
         _devices[device.address] = device;
+        _trackDiscoveredDevice(device);
         _trackConnectionChange(device);
         _publishDevices();
       });
       _deviceRemovedSub = _client.deviceRemoved.listen((device) {
         _devices.remove(device.address);
+        _discoveredAddresses.remove(device.address);
         _connectedAddresses.remove(device.address);
         _publishDevices();
       });
       _deviceChangedSub = _client.deviceChanged.listen((device) {
         _devices[device.address] = device;
+        _trackDiscoveredDevice(device);
         _trackConnectionChange(device);
         _publishDevices();
       });
       _adapterChangedSub = _client.adapterChanged.listen((adapter) {
+        final scanning = adapter.powered && adapter.discovering;
+        if (!scanning) _discoveredAddresses.clear();
         state = state.copyWith(
           powered: adapter.powered,
-          scanning: adapter.powered && adapter.discovering,
+          scanning: scanning,
           pairable: adapter.pairable,
           discoverable: adapter.discoverable,
           clearBusyAddress: !adapter.powered,
           clearPairingRequest: !adapter.powered,
         );
+        _publishDevices();
       });
 
       for (final device in _client.devices) {
@@ -269,6 +271,14 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
           unawaited(_disconnectIncomingDevice(device));
         }
       }
+    }
+  }
+
+  void _trackDiscoveredDevice(BlueZDevice device) {
+    if (device.paired) {
+      _discoveredAddresses.remove(device.address);
+    } else if (state.scanning) {
+      _discoveredAddresses.add(device.address);
     }
   }
 
@@ -394,18 +404,22 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
         await setPowered(true);
         if (!state.powered) return;
       }
-      await adapter.startDiscovery();
+      _discoveredAddresses.clear();
       state = state.copyWith(scanning: true);
+      await adapter.startDiscovery();
+      _publishDevices();
       _scanTimer?.cancel();
       _scanTimer = Timer(
         const Duration(minutes: 2),
         () => unawaited(exitScanMode(timedOut: true)),
       );
     } catch (e) {
+      _discoveredAddresses.clear();
       state = state.copyWith(
         scanning: false,
         error: 'Unable to scan for Bluetooth devices: $e',
       );
+      _publishDevices();
     }
   }
 
@@ -417,7 +431,9 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
     } catch (_) {
       // BlueZ may already have stopped discovery.
     }
+    _discoveredAddresses.clear();
     state = state.copyWith(scanning: false);
+    _publishDevices();
   }
 
   // ── Device actions ─────────────────────────────────────────────────────────
@@ -702,11 +718,51 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
   }
 
   void _publishDevices() {
-    state = state.copyWith(devices: List.unmodifiable(_devices.values));
+    final paired = _devices.values.where((device) => device.paired).toList()
+      ..sort((a, b) {
+        if (a.connected != b.connected) return a.connected ? -1 : 1;
+        return bluetoothDeviceName(a).compareTo(bluetoothDeviceName(b));
+      });
+    final discovered = state.scanning
+        ? _discoveredAddresses
+            .map((address) => _devices[address])
+            .whereType<BlueZDevice>()
+            .where((device) => !device.paired)
+            .toList()
+        : <BlueZDevice>[];
+    discovered.sort((a, b) => b.rssi.compareTo(a.rssi));
+
+    final pairedSignature = _deviceSignature(paired);
+    final discoveredSignature = _deviceSignature(discovered, includeRssi: true);
+    state = state.copyWith(
+      pairedDevices: pairedSignature == _pairedSignature
+          ? state.pairedDevices
+          : List.unmodifiable(paired),
+      discoveredDevices: discoveredSignature == _discoveredSignature
+          ? state.discoveredDevices
+          : List.unmodifiable(discovered),
+    );
+    _pairedSignature = pairedSignature;
+    _discoveredSignature = discoveredSignature;
     ref
         .read(signalsProvider.notifier)
         .toggleBluetooth(_devices.values.any((d) => d.connected));
   }
+
+  String _deviceSignature(
+    List<BlueZDevice> devices, {
+    bool includeRssi = false,
+  }) => devices
+      .map(
+        (device) => [
+          device.address,
+          device.connected,
+          device.paired,
+          bluetoothDeviceName(device),
+          if (includeRssi) device.rssi,
+        ].join('|'),
+      )
+      .join(';');
 
   // ── Dispose ────────────────────────────────────────────────────────────────
 

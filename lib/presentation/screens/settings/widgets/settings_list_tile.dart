@@ -21,11 +21,16 @@ class SettingsTileState extends ConsumerState<SettingsTile> {
   @override
   Widget build(BuildContext context) {
     final signal = ref.watch(signalsProvider.select((signal) => signal));
-    final bluetoothState =
-        widget.title == 'Bluetooth' ? ref.watch(bluetoothProvider) : null;
+    final bluetooth = widget.title == 'Bluetooth'
+        ? ref.watch(
+            bluetoothProvider.select(
+              (state) => (state.powered, state.changingPower),
+            ),
+          )
+        : null;
     var isSwitchOn = true;
     if (widget.title == 'Bluetooth') {
-      isSwitchOn = bluetoothState?.powered ?? false;
+      isSwitchOn = bluetooth?.$1 ?? false;
     } else if (widget.title == 'Wifi') {
       isSwitchOn = signal.isWifiConnected;
     } else {
@@ -92,7 +97,7 @@ class SettingsTileState extends ConsumerState<SettingsTile> {
                               fit: BoxFit.fill,
                               child: Switch(
                                 value: isSwitchOn,
-                                onChanged: bluetoothState?.changingPower == true
+                                onChanged: bluetooth?.$2 == true
                                     ? null
                                     : (bool value) {
                                         switch (widget.title) {

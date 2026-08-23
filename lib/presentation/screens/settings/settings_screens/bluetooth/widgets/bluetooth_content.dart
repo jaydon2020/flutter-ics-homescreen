@@ -10,7 +10,11 @@ class BluetoothContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final btState = ref.watch(bluetoothProvider);
+    final (pairedDevices, busyAddress, operation) = ref.watch(
+      bluetoothProvider.select(
+        (state) => (state.pairedDevices, state.busyAddress, state.operation),
+      ),
+    );
 
     return Column(
       children: [
@@ -22,15 +26,15 @@ class BluetoothContent extends ConsumerWidget {
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 144),
-            itemCount: btState.pairedDevices.length,
+            itemCount: pairedDevices.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              final device = btState.pairedDevices[index];
+              final device = pairedDevices[index];
               return _PairedDeviceTile(
                 device: device,
-                busy: btState.busyAddress == device.address,
-                operation: btState.busyAddress == device.address
-                    ? btState.operation
+                busy: busyAddress == device.address,
+                operation: busyAddress == device.address
+                    ? operation
                     : null,
               );
             },

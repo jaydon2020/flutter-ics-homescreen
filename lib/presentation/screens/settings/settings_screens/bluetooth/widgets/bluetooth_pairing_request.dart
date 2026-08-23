@@ -34,8 +34,11 @@ class _BluetoothPairingRequestState
 
   @override
   Widget build(BuildContext context) {
-    final btState = ref.watch(bluetoothProvider);
-    final request = btState.pairingRequest;
+    final (request, busyAddress, operation) = ref.watch(
+      bluetoothProvider.select(
+        (state) => (state.pairingRequest, state.busyAddress, state.operation),
+      ),
+    );
     if (request == null) return const SizedBox.shrink();
 
     final notifier = ref.read(bluetoothProvider.notifier);
@@ -51,8 +54,8 @@ class _BluetoothPairingRequestState
             request.requestType == AgentRequestType.requestPasskey);
     final code = isSwitchRequest ? null : _pairingCode(request);
     final isSwitching = isSwitchRequest &&
-        btState.operation == BluetoothOperation.switching &&
-        btState.busyAddress == device?.address;
+        operation == BluetoothOperation.switching &&
+        busyAddress == device?.address;
 
     return Positioned.fill(
       child: BackdropFilter(

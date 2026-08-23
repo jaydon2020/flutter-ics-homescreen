@@ -39,8 +39,15 @@ class _BluetoothScanContentState extends ConsumerState<BluetoothScanContent> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(bluetoothProvider);
-    final devices = state.unpairedDevices;
+    final (devices, scanTimedOut, busyAddress) = ref.watch(
+      bluetoothProvider.select(
+        (state) => (
+          state.discoveredDevices,
+          state.scanTimedOut,
+          state.busyAddress,
+        ),
+      ),
+    );
 
     return Column(
       children: [
@@ -52,7 +59,7 @@ class _BluetoothScanContentState extends ConsumerState<BluetoothScanContent> {
               ref.read(appProvider.notifier).updateNested(AppState.bluetooth),
         ),
         Expanded(
-          child: state.scanTimedOut
+          child: scanTimedOut
               ? _ScanTimedOutView(
                   onRefresh: () => _notifier.enterScanMode(),
                 )
@@ -68,7 +75,7 @@ class _BluetoothScanContentState extends ConsumerState<BluetoothScanContent> {
                     final device = devices[index];
                     return _DiscoveredDeviceTile(
                       device: device,
-                      busy: state.busyAddress == device.address,
+                      busy: busyAddress == device.address,
                       onConnected: () {
                         if (!mounted) return;
                         ref
