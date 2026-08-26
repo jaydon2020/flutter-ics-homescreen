@@ -802,6 +802,5 @@ final blueZClientFactoryProvider =
 final bluetoothProvider =
     NotifierProvider<BluetoothNotifier, BluetoothState>(BluetoothNotifier.new);
 
-/// Uses the demo backend when native initialization fails.
-final nativeBluetoothAvailableProvider = Provider<bool?>((ref) =>
-    ref.watch(bluetoothProvider.select((state) => state.nativeAvailable)));
+/// Native Bluetooth settings are disabled on the desktop testing branch.
+final nativeBluetoothAvailableProvider = Provider<bool>((_) => false);
