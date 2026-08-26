@@ -686,6 +686,8 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   }
 
   Future<void> _setDeviceBlocked(BlueZDevice device, bool blocked) async {
+    // Desktop testing: never leave paired peripherals blocked by BlueZ.
+    blocked = false;
     if (device.blocked == blocked) return;
 
     final arguments = [
