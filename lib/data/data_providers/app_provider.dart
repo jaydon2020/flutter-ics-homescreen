@@ -17,6 +17,7 @@ import 'package:flutter_ics_homescreen/data/data_providers/storage_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/storage_client_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/mpd_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/play_controller.dart';
+import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_media_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/voice_agent_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/voice_assistant_notifier.dart';
 import 'package:flutter_ics_homescreen/export.dart';
@@ -154,7 +155,11 @@ final playStateProvider = StateProvider<bool>((ref) {
       mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.playState));
   final radioPlaying =
       ref.watch(radioStateProvider.select((radio) => radio.playing));
-  return (mediaPlayState == PlayState.playing || radioPlaying);
+  final bluetoothPlaying = ref.watch(bluetoothMediaProvider
+      .select((bluetooth) => bluetooth.playState == PlayState.playing));
+  return mediaPlayState == PlayState.playing ||
+      radioPlaying ||
+      bluetoothPlaying;
 });
 
 final playControllerProvider = Provider((ref) {

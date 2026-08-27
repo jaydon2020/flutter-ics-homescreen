@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"
+  sdk: ">=3.10.1 <4.0.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -59,6 +59,10 @@ dependencies:
   dart_mpd: ^0.4.1
   mime: ^2.0.0
   bluez_native: ^0.3.1
+  bluez_media_native:
+    git:
+      url: https://github.com/jaydon2020/bluez_media_native.git
+      ref: b0884e3adc31c6b1689647d78246d993bd2831b9
 
 dependency_overrides:
   code_assets: 1.1.0
