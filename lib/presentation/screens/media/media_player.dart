@@ -193,9 +193,10 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
                       const MediaPlayerControls(bluetooth: true),
                       const SizedBox(height: 12),
                       _BluetoothMediaHeader(
-                        title: bluetooth.album.isEmpty
-                            ? 'Songs'
-                            : bluetooth.album,
+                        title: _bluetoothMediaHeaderTitle(
+                          connected: bluetooth.connected,
+                          album: bluetooth.album,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Expanded(
@@ -249,9 +250,10 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _BluetoothMediaHeader(
-                            title: bluetooth.album.isEmpty
-                                ? 'Songs'
-                                : bluetooth.album,
+                            title: _bluetoothMediaHeaderTitle(
+                              connected: bluetooth.connected,
+                              album: bluetooth.album,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Expanded(
@@ -326,6 +328,14 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
       ),
     );
   }
+}
+
+String _bluetoothMediaHeaderTitle({
+  required bool connected,
+  required String album,
+}) {
+  if (!connected) return 'Bluetooth';
+  return album.isEmpty ? 'Songs' : album;
 }
 
 class _BluetoothMediaHeader extends ConsumerWidget {
