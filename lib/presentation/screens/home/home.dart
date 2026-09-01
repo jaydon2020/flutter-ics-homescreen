@@ -3,15 +3,20 @@ import 'package:flutter_ics_homescreen/export.dart';
 import '../../common_widget/voice_assistant_button.dart';
 // import 'package:media_kit_video/media_kit_video.dart';
 
+// Both backgrounds are authored at the 1080x1920 design resolution. They are
+// laid out with Positioned.fill and drawn with BoxFit.cover so they still cover
+// the view on a display of a different aspect: a bare Lottie/DecorationImage
+// keeps the composition's aspect ratio, which on (say) a 1080x1440 view sizes
+// the art to 810x1440 and leaves the right 270px of the Stack empty.
 final bkgImageProvider = Provider((ref) {
-  return Container(
-      width: 1080,
-      height: 1920,
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage("assets/BG_Sequence_00000.png"),
-        ),
-      ));
+  return const DecoratedBox(
+    decoration: BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage("assets/BG_Sequence_00000.png"),
+        fit: BoxFit.cover,
+      ),
+    ),
+  );
 });
 
 final bkgAnimationProvider = Provider((ref) {
@@ -59,9 +64,9 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
         body: Stack(
           children: [
             if (!disableBkgAnimation)
-              ref.watch(bkgAnimationProvider)
+              Positioned.fill(child: ref.watch(bkgAnimationProvider))
             else if (!plainBackground)
-              ref.watch(bkgImageProvider),
+              Positioned.fill(child: ref.watch(bkgImageProvider)),
             FlowBuilder<AppState>(
               state: appState,
               onGeneratePages: onGenerateAppViewPages,
@@ -79,13 +84,14 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
                     child: const VolumeFanControl()),
               ),
             //   Voice Assistant Button
-            if (appState != AppState.splash && ref.watch(voiceAssistantStateProvider.select((value)=>value.isVoiceAssistantEnable)))
+            if (appState != AppState.splash &&
+                ref.watch(voiceAssistantStateProvider
+                    .select((value) => value.isVoiceAssistantEnable)))
               Positioned(
                 top: MediaQuery.of(context).size.height * 0.82,
                 child: Container(
                     padding: const EdgeInsets.only(left: 8),
-                    child: const VoiceAssistantButton()
-                ),
+                    child: const VoiceAssistantButton()),
               ),
           ],
         ),

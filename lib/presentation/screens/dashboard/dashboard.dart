@@ -4,6 +4,9 @@ import 'widgets/dashboard_content.dart';
 final dashboardTextureProvider = Provider((ref) {
   return SvgPicture.asset(
     'assets/dashboardTextures.svg',
+    // 1080x1840 art: cover so it fills a view of another aspect instead of
+    // letterboxing (see home.dart's background providers).
+    fit: BoxFit.cover,
     alignment: Alignment.center,
   );
 });

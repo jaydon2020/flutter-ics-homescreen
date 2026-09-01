@@ -16,6 +16,9 @@ class SplashPage extends StatelessWidget {
           height: double.infinity,
           child: SvgPicture.asset(
             'assets/splashTextures.svg',
+            // Same reason as the home background: contain (the default) letterboxes
+            // the 1080x1921 texture on any other aspect and leaves bare edges.
+            fit: BoxFit.cover,
             alignment: Alignment.center,
           ),
         ),

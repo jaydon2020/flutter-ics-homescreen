@@ -33,6 +33,9 @@ class HvacPage extends StatelessWidget {
           // color: Colors.black,
           child: SvgPicture.asset(
             'assets/backgroundTextures.svg',
+            // 1080x1921 art: cover so it fills a view of another aspect instead
+            // of letterboxing (see home.dart's background providers).
+            fit: BoxFit.cover,
             alignment: Alignment.center,
             //width: 200,
             //height: 200,
