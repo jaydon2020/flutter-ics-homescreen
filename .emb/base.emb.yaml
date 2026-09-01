@@ -1,0 +1,116 @@
+# flutter-ics-homescreen on ivi-homescreen — the app layer.
+#
+# `emb cross <project> --app <dir>` builds the embedder from the ivi-homescreen
+# project and this Flutter app from <dir>, then assembles one runnable bundle
+# (homescreen + engine + flutter_assets + libapp.so, started as
+# `./homescreen -b .`). The project owns the board profile every app on that
+# board shares; this file states only what the ICS homescreen needs on top of
+# it, which is the plugin set its Dart packages call into.
+#
+#   # this machine, inside a Wayland session
+#   emb cross ../ivi-homescreen --target local --build \
+#       --backend wayland-egl --app ../flutter-ics-homescreen --mode debug
+#
+#   # a board — Pi 5 / Pi 4 / Pi Zero 2 W, see raspberry-pi.emb.yaml
+#   emb cross ../ivi-homescreen --target rpi5-trixie --build --no-verify \
+#       --backend drm-kms-egl --app ../flutter-ics-homescreen --mode release \
+#       --tar --deploy pi@raspberrypi.local --run
+#
+# Checkout layout: ivi-homescreen, ivi-homescreen-plugins and this repo sit
+# side by side under the workspace's app/. PLUGINS_DIR is resolved relative to
+# the embedder's CMake source, so that relative path is correct for any repo
+# checked out beside the embedder — including this one. From anywhere else it
+# silently misses and the embedder builds with no plugins at all.
+#
+# --no-verify on the board targets: this layer changes the embedder's defines
+# (the plugins below), which reads as build_key drift against ivi-homescreen's
+# committed emb.lock. The alternative, --update-lock, would rewrite the
+# embedder's lock with inputs that belong to this app.
+#
+# base.emb.yaml is the shared layer of an `.emb/` directory: emb merges it into
+# every board file beside it, and it is also the block the native build reads
+# (`local`/`host` are reserved names, so no manifest may declare them as
+# targets). Everything here therefore applies both to `--target local` and to
+# the Pi targets in raspberry-pi.emb.yaml.
+id: flutter-ics-homescreen
+type: app
+supported_archs: [arm64, x86_64]
+supported_host_types: [fedora, ubuntu]
+
+# Building the app on its own, without the embedder:
+#   emb bundle --app-path . --arch arm64 --build      # release AOT bundle
+build:
+  app_path: .
+  archs: [x86_64, arm64]
+  modes: [release]
+  output: bundles
+
+# Host packages a `--target local` build needs — the embedder's own GUI/input
+# stack plus pugixml for the host-native wayland-cxx-scanner ivi-homescreen
+# builds during a Wayland backend configure. The board targets take none of
+# this: they build against the sysroot the ivi-homescreen project resolves.
+# `emb deps` discovers `emb.yaml` / a pubspec `emb:` key, not `.emb/` layers,
+# so on a bare machine install these directly:
+#   fedora: sudo dnf install <linux.fedora below>
+#   ubuntu: sudo apt install <linux.ubuntu below>
+deps:
+  linux:
+    fedora:
+      - cmake
+      - ninja-build
+      - pkgconf-pkg-config
+      - mesa-libEGL-devel
+      - libglvnd-devel
+      - wayland-devel
+      - wayland-protocols-devel
+      - libxkbcommon-devel
+      - libdrm-devel
+      - mesa-libgbm-devel
+      - libinput-devel
+      - libseat-devel
+      - libXcursor-devel
+      - libdisplay-info-devel
+      - vulkan-loader-devel
+      - vulkan-headers
+      - systemd-devel
+      - glib2-devel
+      - libcurl-devel
+      - pugixml-devel
+      - zlib-devel
+    ubuntu:
+      - cmake
+      - ninja-build
+      - pkg-config
+      - libegl-dev
+      - libgles2-mesa-dev
+      - libwayland-dev
+      - wayland-protocols
+      - libxkbcommon-dev
+      - libdrm-dev
+      - libgbm-dev
+      - libinput-dev
+      - libseat-dev
+      - libxcursor-dev
+      - libdisplay-info-dev
+      - libvulkan-dev
+      - libsystemd-dev
+      - libglib2.0-dev
+      - libcurl4-openssl-dev
+      - libpugixml-dev
+      - zlib1g-dev
+
+cross:
+  defines:
+    # ivi-homescreen's own base builds with plugins off. This app needs them:
+    # the plugin sources live in the repo checked out beside the embedder.
+    DISABLE_PLUGINS: 'OFF'
+    PLUGINS_DIR: '../ivi-homescreen-plugins/plugins'
+
+    # pubspec depends on `rive`, and lib/ imports it. rive_common resolves its
+    # text shaping / font work through the embedder plugin of the same name;
+    # without it every Rive widget in the UI fails at runtime rather than at
+    # build time. Nothing else the app pulls in needs a native plugin — the
+    # KUKSA databroker (gRPC), MPD (dart_mpd) and radio/storage services are
+    # plain sockets, and flutter_svg, lottie, google_fonts and
+    # shared_preferences are Dart-only on this embedder.
+    BUILD_PLUGIN_RIVE_TEXT: 'ON'
