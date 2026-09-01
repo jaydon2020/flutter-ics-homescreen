@@ -33,7 +33,8 @@ class DashBoardState extends ConsumerState<DashBoard>
 
     // Start the animation on first build.
     if (!_isAnimationPlayed) {
-      Future.delayed(const Duration(milliseconds: 500), () {
+      _fadeTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
         _animationController.forward();
         _isAnimationPlayed = true;
       });
@@ -53,6 +54,7 @@ class DashBoardState extends ConsumerState<DashBoard>
 
   @override
   void dispose() {
+    _fadeTimer?.cancel();
     _animationController.dispose();
     if (timer != null) {
       timer?.cancel();
