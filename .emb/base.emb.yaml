@@ -114,3 +114,25 @@ cross:
     # plain sockets, and flutter_svg, lottie, google_fonts and
     # shared_preferences are Dart-only on this embedder.
     BUILD_PLUGIN_RIVE_TEXT: 'ON'
+
+  # ...but that plugin does not implement Rive's text engine, it only dlopen()s
+  # "librive_text.so" and re-exports its symbols, which is how rive_common's
+  # DynamicLibrary.process() lookups resolve. Nothing else in the workspace
+  # builds that library into an app bundle, so without this every Rive widget
+  # dies with
+  #   Unhandled Exception: Invalid argument(s): Failed to lookup symbol 'init'
+  # and, for this app, the HVAC fan animation never spins.
+  #
+  # The source is meta-flutter/rive-common (CMake, target rive_text, SHARED),
+  # checked out beside the embedder. A module is built with the embedder's own
+  # toolchain and staged into the bundle's lib/, which the embedder's RUNPATH
+  # ($ORIGIN/lib:$ORIGIN) already covers, so the plugin's bare-soname dlopen
+  # finds it. `path` is resolved against the project emb is building — the
+  # ivi-homescreen directory — not against this manifest.
+  modules:
+    - name: rive-text
+      path: ../rive-common
+      build: cmake
+      artifacts: [librive_text.so]
+      defines:
+        ENABLE_LTO: 'ON'
