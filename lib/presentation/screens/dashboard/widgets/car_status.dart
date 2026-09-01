@@ -14,7 +14,16 @@ final carImageProvider = Provider((ref) {
 });
 
 class CarStatus extends ConsumerWidget {
-  const CarStatus({super.key});
+  const CarStatus({super.key, this.carLink});
+
+  /// Marks the car illustration so the dashboard's own unfaded copy can follow
+  /// it and paint exactly on top. Both are the same asset at the same size;
+  /// only this one fades with the rest of the content. See DashBoardState.build.
+  final LayerLink? carLink;
+
+  Widget _linked(Widget child) => carLink == null
+      ? child
+      : CompositedTransformTarget(link: carLink!, child: child);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,7 +39,7 @@ class CarStatus extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 47.0), // Adding horizontal padding
-              child: ref.read(carImageProvider),
+              child: _linked(ref.read(carImageProvider)),
             ),
             const RightCarStatus(),
           ],
