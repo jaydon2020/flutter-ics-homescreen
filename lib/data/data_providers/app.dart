@@ -16,6 +16,10 @@ class App extends StatelessWidget {
       debugShowCheckedModeBanner: debugShowCheckedModeBanner,
       showPerformanceOverlay: debugShowPerformanceOverlay,
       theme: theme,
+      // Lays every route out on the 1080x1920 canvas the UI was drawn for and
+      // scales it to whatever view the embedder gives us. A no-op — literally
+      // returns its child — when the view already is 1080x1920.
+      builder: (context, child) => DesignScale(child: child!),
       home: const AppView(),
     );
   }

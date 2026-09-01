@@ -28,6 +28,7 @@ export 'presentation/screens/dashboard/widgets/circle_indicator.dart';
 export 'presentation/screens/dashboard/widgets/child_lock.dart';
 export 'presentation/screens/dashboard/widgets/hybrid_mode.dart';
 export 'presentation/common_widget/custom_bottom_bar.dart';
+export 'presentation/common_widget/design_scale.dart';
 export 'presentation/common_widget/custom_top_bar.dart';
 export 'presentation/screens/media/media.dart';
 export 'presentation/screens/hvac/hvac.dart';
