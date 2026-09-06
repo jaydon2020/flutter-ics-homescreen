@@ -4,6 +4,7 @@ import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_sc
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/bluetooth/bluetooth_scan_screen.dart';
 
 import '../../../../export.dart';
+import '../../screens/calls/calls.dart';
 import '../../screens/settings/settings_screens/voice_assistant/voice_assistant_screen.dart';
 import '../../screens/settings/settings_screens/voice_assistant/widgets/stt_model/stt_model_screen.dart';
 
@@ -20,6 +21,8 @@ List<Page<dynamic>> onGenerateAppViewPages(
       return [HvacPage.page()];
     case AppState.apps:
       return [AppsPage.page()];
+    case AppState.calls:
+      return [CallsPage.page()];
     case AppState.media:
       return [MediaPage.page()];
     case AppState.settings:

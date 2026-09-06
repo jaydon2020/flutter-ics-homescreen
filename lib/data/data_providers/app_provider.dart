@@ -30,6 +30,7 @@ enum AppState {
   dashboard,
   hvac,
   apps,
+  calls,
   media,
   settings,
   splash,
