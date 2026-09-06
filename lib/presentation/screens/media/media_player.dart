@@ -33,7 +33,13 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
       (previous, next) {
         if (next.available && previous?.available != true) {
           if (ref.read(mediaSourceTabProvider) == MediaSourceTab.bluetooth) {
-            _selectSource('Bluetooth');
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  ref.read(bluetoothMediaProvider).available &&
+                  ref.read(mediaSourceTabProvider) == MediaSourceTab.bluetooth) {
+                _selectSource('Bluetooth');
+              }
+            });
           }
         } else if (!next.available &&
             ref.read(mediaSourceTabProvider) == MediaSourceTab.bluetooth) {
