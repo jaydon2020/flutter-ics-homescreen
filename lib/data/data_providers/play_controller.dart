@@ -6,6 +6,8 @@ enum PlaySource { none, media, radio, bluetooth }
 class PlayController {
   final Ref ref;
   PlaySource source = PlaySource.none;
+  // Survives media-page disposal while FM interrupts media playback.
+  PlaySource pausedMediaSource = PlaySource.none;
 
   PlayController({required this.ref});
 

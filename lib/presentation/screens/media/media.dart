@@ -57,8 +57,6 @@ class Media extends ConsumerStatefulWidget {
 }
 
 class _MediaState extends ConsumerState<Media> {
-  PlaySource _pausedMediaSource = PlaySource.none;
-
   @override
   void initState() {
     // Set initial source so external control (like the volume bar button)
@@ -88,6 +86,8 @@ class _MediaState extends ConsumerState<Media> {
   }
 
   void onPressed(MediaNavState type) {
+    if (type == ref.read(mediaNavStateProvider)) return;
+    final controller = ref.read(playControllerProvider);
     if (type == MediaNavState.fm) {
       ref.read(mediaNavStateProvider.notifier).set(MediaNavState.fm);
       final currentSource = ref.read(playControllerProvider).source;
@@ -95,7 +95,7 @@ class _MediaState extends ConsumerState<Media> {
           ref.read(mediaPlayerStateProvider).playState == PlayState.playing;
       final bluetoothPlaying =
           ref.read(bluetoothMediaProvider).playState == PlayState.playing;
-      _pausedMediaSource = switch (currentSource) {
+      controller.pausedMediaSource = switch (currentSource) {
         PlaySource.bluetooth when bluetoothPlaying => PlaySource.bluetooth,
         PlaySource.media when mpdPlaying => PlaySource.media,
         _ when bluetoothPlaying => PlaySource.bluetooth,
@@ -113,8 +113,8 @@ class _MediaState extends ConsumerState<Media> {
     } else if (type == MediaNavState.media) {
       ref.read(mediaNavStateProvider.notifier).set(MediaNavState.media);
       ref.read(radioClientProvider).stop();
-      final resumeSource = _pausedMediaSource;
-      _pausedMediaSource = PlaySource.none;
+      final resumeSource = controller.pausedMediaSource;
+      controller.pausedMediaSource = PlaySource.none;
       if (resumeSource == PlaySource.bluetooth &&
           ref.read(bluetoothMediaProvider).connected) {
         ref.read(mediaSourceTabProvider.notifier).set(MediaSourceTab.bluetooth);
