@@ -191,6 +191,8 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
   final _listedFolderPaths = <String>{};
   final _refreshedItemPaths = <String>{};
   Timer? _positionTimer;
+  Timer? _coverArtRetryTimer;
+  int _coverArtRetryCount = 0;
   Directory? _coverArtDirectory;
   String? _coverArtKey;
   String? _coverArtRequestedKey;
@@ -414,6 +416,9 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
       _player = null;
       _transport = null;
       _coverArtKey = null;
+      _coverArtRetryTimer?.cancel();
+      _coverArtRetryTimer = null;
+      _coverArtRetryCount = 0;
       _coverArtRequestedKey = null;
       _coverArtPending = false;
       _listedFolderPaths.clear();
@@ -475,6 +480,11 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
     final coverArtKey = canLoadCoverArt
         ? '${player.objectPath}\u001f${player.imageHandle}'
         : null;
+    if (_coverArtKey != coverArtKey) {
+      _coverArtRetryTimer?.cancel();
+      _coverArtRetryTimer = null;
+      _coverArtRetryCount = 0;
+    }
     _coverArtKey = coverArtKey;
     final loadingCoverArt =
         coverArtKey != null &&
@@ -583,6 +593,28 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
     } catch (error) {
       if (directory != null) await _deleteDirectory(directory);
       _logError('Bluetooth cover art is unavailable', error);
+      if (!_disposed &&
+          coverArtKey == _coverArtKey &&
+          !_coverArtPending &&
+          _coverArtRetryCount < 2) {
+        // Keep the request key during backoff so position updates cannot
+        // bypass the delay. Retry even when a paused player emits no updates.
+        _coverArtRetryCount++;
+        _coverArtRetryTimer = Timer(
+          Duration(seconds: 2 * _coverArtRetryCount),
+          () {
+            _coverArtRetryTimer = null;
+            final currentPlayer = _player;
+            if (_disposed ||
+                currentPlayer == null ||
+                coverArtKey != _coverArtKey) {
+              return;
+            }
+            _coverArtRequestedKey = null;
+            _publish(currentPlayer);
+          },
+        );
+      }
     } finally {
       _coverArtLoading = false;
       if (!_disposed && _coverArtPending) {
@@ -701,6 +733,8 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
 
   void _disposeResources() {
     _disposed = true;
+    _coverArtRetryTimer?.cancel();
+    _coverArtRetryTimer = null;
     _coverArtPending = false;
     _playingItem = false;
     _stopPositionRefresh();
