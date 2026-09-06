@@ -163,7 +163,35 @@ final playStateProvider = StateProvider<bool>((ref) {
 });
 
 final playControllerProvider = Provider((ref) {
-  return PlayController(ref: ref);
+  final controller = PlayController(ref: ref);
+  // Listen without rebuilding the controller: retain the last source for
+  // resume, and preserve the media source saved while FM is playing.
+  ref.listen<bool>(
+    mediaPlayerStateProvider.select(
+      (state) => state.playState == PlayState.playing,
+    ),
+    (_, playing) {
+      if (playing) controller.setSource(PlaySource.media);
+    },
+    fireImmediately: true,
+  );
+  ref.listen<bool>(
+    radioStateProvider.select((state) => state.playing),
+    (_, playing) {
+      if (playing) controller.setSource(PlaySource.radio);
+    },
+    fireImmediately: true,
+  );
+  ref.listen<bool>(
+    bluetoothMediaProvider.select(
+      (state) => state.playState == PlayState.playing,
+    ),
+    (_, playing) {
+      if (playing) controller.setSource(PlaySource.bluetooth);
+    },
+    fireImmediately: true,
+  );
+  return controller;
 });
 
 final usersProvider =
