@@ -592,28 +592,28 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
       if (previous != null) unawaited(_deleteDirectory(previous));
     } catch (error) {
       if (directory != null) await _deleteDirectory(directory);
-      _logError('Bluetooth cover art is unavailable', error);
-      if (!_disposed &&
-          coverArtKey == _coverArtKey &&
-          !_coverArtPending &&
-          _coverArtRetryCount < 2) {
-        // Keep the request key during backoff so position updates cannot
-        // bypass the delay. Retry even when a paused player emits no updates.
-        _coverArtRetryCount++;
-        _coverArtRetryTimer = Timer(
-          Duration(seconds: 2 * _coverArtRetryCount),
-          () {
-            _coverArtRetryTimer = null;
-            final currentPlayer = _player;
-            if (_disposed ||
-                currentPlayer == null ||
-                coverArtKey != _coverArtKey) {
-              return;
-            }
-            _coverArtRequestedKey = null;
-            _publish(currentPlayer);
-          },
-        );
+      _coverArtPending = false;
+      if (!_disposed && coverArtKey == _coverArtKey) {
+        if (_coverArtRetryCount < 2) {
+          // Keep the request key during backoff so position updates cannot
+          // bypass the delay. Retry even when a paused player emits no updates.
+          _coverArtRetryCount++;
+          _coverArtRetryTimer = Timer(
+            Duration(seconds: 2 * _coverArtRetryCount),
+            () {
+              _coverArtRetryTimer = null;
+              final currentPlayer = _player;
+              if (_disposed ||
+                  currentPlayer == null ||
+                  coverArtKey != _coverArtKey) {
+                return;
+              }
+              _startCoverArtLoad(currentPlayer, coverArtKey);
+            },
+          );
+        } else {
+          _logError('Bluetooth cover art is unavailable', error);
+        }
       }
     } finally {
       _coverArtLoading = false;
