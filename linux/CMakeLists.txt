@@ -91,6 +91,18 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# Rive's bundled HarfBuzz triggers this diagnostic on newer Clang versions.
+# Keep it visible without making it fatal in this third-party target.
+if(TARGET rive_common_plugin AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  include(CheckCXXCompilerFlag)
+  check_cxx_compiler_flag("-Wno-error=nontrivial-memcall"
+    RIVE_HAS_NONTRIVIAL_MEMCALL_DIAGNOSTIC)
+  if(RIVE_HAS_NONTRIVIAL_MEMCALL_DIAGNOSTIC)
+    target_compile_options(rive_common_plugin PRIVATE
+      "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=nontrivial-memcall>")
+  endif()
+endif()
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
