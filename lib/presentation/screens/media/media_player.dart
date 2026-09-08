@@ -36,7 +36,8 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted &&
                   ref.read(bluetoothMediaProvider).available &&
-                  ref.read(mediaSourceTabProvider) == MediaSourceTab.bluetooth) {
+                  ref.read(mediaSourceTabProvider) ==
+                      MediaSourceTab.bluetooth) {
                 _selectSource('Bluetooth');
               }
             });
@@ -608,7 +609,7 @@ class _BluetoothMediaRow extends StatelessWidget {
                   flex: 4,
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(
+                    child: AutoSizeText(
                       item.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
