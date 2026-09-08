@@ -37,11 +37,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "97a139ff2497bbd7b833827dad1c6d252b25be67"
-      resolved-ref: "97a139ff2497bbd7b833827dad1c6d252b25be67"
+      ref: 9c2ee0670e60db67d0e34bca0462eaeeee5f256c
+      resolved-ref: 9c2ee0670e60db67d0e34bca0462eaeeee5f256c
       url: "https://github.com/jaydon2020/bluez_media_native.git"
     source: git
-    version: "0.3.0"
+    version: "0.3.1"
   bluez_native:
     dependency: "direct main"
     description:
