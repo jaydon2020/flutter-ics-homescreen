@@ -153,7 +153,7 @@ class _PlayListTableState extends ConsumerState<PlayListTable> {
                                       flex: 6,
                                       child: Align(
                                         alignment: Alignment.centerLeft,
-                                        child: AutoSizeText(
+                                        child: Text(
                                           playlist[index].title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,

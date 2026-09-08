@@ -593,7 +593,7 @@ class _BluetoothMediaRow extends StatelessWidget {
                   flex: 6,
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: AutoSizeText(
+                    child: Text(
                       item.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
