@@ -586,7 +586,7 @@ class _BluetoothMediaRow extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 24),
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 24),
             child: Column(
               children: [
                 Expanded(

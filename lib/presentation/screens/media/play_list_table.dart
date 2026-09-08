@@ -144,7 +144,7 @@ class _PlayListTableState extends ConsumerState<PlayListTable> {
                               },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 17,
+                                  vertical: 7,
                                   horizontal: 24,
                                 ),
                                 child: Column(
