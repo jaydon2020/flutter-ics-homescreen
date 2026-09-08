@@ -91,6 +91,11 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# Rive's bundled HarfBuzz and SheenBidi trigger diagnostics on newer compilers.
+# Keep them visible without making them fatal in this third-party target.
+if(TARGET rive_common_plugin)
+  target_compile_options(rive_common_plugin PRIVATE -Wno-error)
+endif()
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

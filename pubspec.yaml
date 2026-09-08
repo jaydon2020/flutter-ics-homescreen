@@ -62,7 +62,7 @@ dependencies:
   bluez_media_native:
     git:
       url: https://github.com/jaydon2020/bluez_media_native.git
-      ref: b0884e3adc31c6b1689647d78246d993bd2831b9
+      ref: 22da5f8eccb60f74e0eb6c0ed4029d47ea136cd9
 
 dependency_overrides:
   code_assets: 1.1.0
