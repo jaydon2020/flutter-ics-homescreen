@@ -591,7 +591,25 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
         final itemPath = parseBluetoothTrack(player.track).itemPath;
         final client = _client;
         if (client == null) throw StateError('Bluetooth media is unavailable');
-        bytes = await client.getMprisCoverArt(itemPath);
+        Uint8List? publishedBytes;
+        for (var attempt = 0; attempt < 2; attempt++) {
+          try {
+            publishedBytes = await client.getMprisCoverArt(itemPath);
+            break;
+          } catch (_) {
+            await Future<void>.delayed(const Duration(seconds: 2));
+            if (_disposed || coverArtKey != _coverArtKey) return;
+          }
+        }
+        if (publishedBytes != null) {
+          bytes = publishedBytes;
+        } else {
+          directory = await Directory.systemTemp.createTemp('bluez_media_art_');
+          final path = await player.getCoverArtFromExistingSession(
+            '${directory.path}/cover-art',
+          );
+          bytes = await File(path).readAsBytes();
+        }
       } else {
         directory = await Directory.systemTemp.createTemp('bluez_media_art_');
         final path = await player.getCoverArt('${directory.path}/cover-art');
@@ -612,15 +630,13 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
       if (directory != null) await _deleteDirectory(directory);
       _coverArtPending = false;
       if (!_disposed && coverArtKey == _coverArtKey) {
-        final retryLimit = _enableCoverArtNative ? 2 : 10;
+        const retryLimit = 2;
         if (_coverArtRetryCount < retryLimit) {
           // Keep the request key during backoff so position updates cannot
           // bypass the delay. Retry even when a paused player emits no updates.
           _coverArtRetryCount++;
           _coverArtRetryTimer = Timer(
-            Duration(
-              seconds: _enableCoverArtNative ? 2 * _coverArtRetryCount : 2,
-            ),
+            Duration(seconds: 2 * _coverArtRetryCount),
             () {
               _coverArtRetryTimer = null;
               final currentPlayer = _player;
