@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mediaplayer_state.dart';
+import 'app_config_provider.dart';
 
 ({
   String title,
@@ -179,6 +180,7 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
   @override
   BluetoothMediaState build() {
     ref.onDispose(_disposeResources);
+    _enableCoverArtNative = ref.read(appConfigProvider).enableCoverArtNative;
     unawaited(_initialize());
     return const BluetoothMediaState();
   }
@@ -193,7 +195,6 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
   Timer? _positionTimer;
   Timer? _coverArtRetryTimer;
   int _coverArtRetryCount = 0;
-  Directory? _coverArtDirectory;
   String? _coverArtKey;
   String? _coverArtRequestedKey;
   bool _coverArtLoading = false;
@@ -201,16 +202,24 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
   bool _refreshingPosition = false;
   bool _playingItem = false;
   bool _disposed = false;
+  late final bool _enableCoverArtNative;
+  Directory? _coverArtDirectory;
 
   Future<void> _initialize() async {
     BluezMediaClient? client;
     try {
-      client = await BluezMediaClient.create();
+      client = await BluezMediaClient.create(
+        manageCoverArt: _enableCoverArtNative,
+      );
       if (_disposed) {
         await client.close();
         return;
       }
       _client = client;
+      debugPrint(
+        'Bluetooth cover art mode: '
+        '${_enableCoverArtNative ? 'native' : 'mpris'}',
+      );
       _clientSubscriptions.addAll([
         client.playerAdded.listen(_playerAdded),
         client.playerRemoved.listen(_playerRemoved),
@@ -475,10 +484,11 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
 
     final track = parseBluetoothTrack(player.track);
     final transport = _transport;
-    final canLoadCoverArt =
-        player.obexPort != 0 && player.imageHandle.isNotEmpty;
+    final canLoadCoverArt = _enableCoverArtNative
+        ? player.obexPort != 0 && player.imageHandle.isNotEmpty
+        : track.itemPath.isNotEmpty;
     final coverArtKey = canLoadCoverArt
-        ? '${player.objectPath}\u001f${player.imageHandle}'
+        ? '${player.objectPath}\u001f${player.imageHandle}\u001f${track.itemPath}'
         : null;
     if (_coverArtKey != coverArtKey) {
       _coverArtRetryTimer?.cancel();
@@ -576,16 +586,24 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
   ) async {
     Directory? directory;
     try {
-      directory = await Directory.systemTemp.createTemp('bluez_media_art_');
-      final path = await player.getCoverArt('${directory.path}/cover-art');
-      final bytes = await File(path).readAsBytes();
+      final Uint8List bytes;
+      if (!_enableCoverArtNative) {
+        final itemPath = parseBluetoothTrack(player.track).itemPath;
+        final client = _client;
+        if (client == null) throw StateError('Bluetooth media is unavailable');
+        bytes = await client.getMprisCoverArt(itemPath);
+      } else {
+        directory = await Directory.systemTemp.createTemp('bluez_media_art_');
+        final path = await player.getCoverArt('${directory.path}/cover-art');
+        bytes = await File(path).readAsBytes();
+      }
       if (_disposed || coverArtKey != _coverArtKey) {
-        await _deleteDirectory(directory);
+        if (directory != null) await _deleteDirectory(directory);
         return;
       }
-
       final previous = _coverArtDirectory;
       _coverArtDirectory = directory;
+      directory = null;
       _updateState(
         (state) => state.copyWith(coverArt: bytes, coverArtLoading: false),
       );
@@ -594,12 +612,15 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
       if (directory != null) await _deleteDirectory(directory);
       _coverArtPending = false;
       if (!_disposed && coverArtKey == _coverArtKey) {
-        if (_coverArtRetryCount < 2) {
+        final retryLimit = _enableCoverArtNative ? 2 : 10;
+        if (_coverArtRetryCount < retryLimit) {
           // Keep the request key during backoff so position updates cannot
           // bypass the delay. Retry even when a paused player emits no updates.
           _coverArtRetryCount++;
           _coverArtRetryTimer = Timer(
-            Duration(seconds: 2 * _coverArtRetryCount),
+            Duration(
+              seconds: _enableCoverArtNative ? 2 * _coverArtRetryCount : 2,
+            ),
             () {
               _coverArtRetryTimer = null;
               final currentPlayer = _player;
@@ -621,10 +642,7 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
         _coverArtPending = false;
         final player = _player;
         final coverArtKey = _coverArtKey;
-        if (player != null &&
-            coverArtKey != null &&
-            player.obexPort != 0 &&
-            player.imageHandle.isNotEmpty) {
+        if (player != null && coverArtKey != null) {
           _startCoverArtLoad(player, coverArtKey);
         }
       } else if (!_disposed && state.coverArtLoading) {
@@ -733,6 +751,7 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
 
   void _disposeResources() {
     _disposed = true;
+
     _coverArtRetryTimer?.cancel();
     _coverArtRetryTimer = null;
     _coverArtPending = false;
