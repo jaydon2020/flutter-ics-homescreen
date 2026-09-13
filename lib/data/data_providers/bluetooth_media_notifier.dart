@@ -209,7 +209,9 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
     BluezMediaClient? client;
     try {
       client = await BluezMediaClient.create(
-        manageCoverArt: _enableCoverArtNative,
+        coverArtMode: _enableCoverArtNative
+            ? BluezMediaCoverArtMode.native
+            : BluezMediaCoverArtMode.mpris,
       );
       if (_disposed) {
         await client.close();
