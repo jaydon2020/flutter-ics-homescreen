@@ -487,7 +487,8 @@ class BluetoothMediaNotifier extends Notifier<BluetoothMediaState> {
     final track = parseBluetoothTrack(player.track);
     final transport = _transport;
     final canLoadCoverArt = _enableCoverArtNative
-        ? player.obexPort != 0 && player.imageHandle.isNotEmpty
+        ? player.obexPort != 0 &&
+              (player.imageHandle.isNotEmpty || track.itemPath.isNotEmpty)
         : track.itemPath.isNotEmpty;
     final coverArtKey = canLoadCoverArt
         ? '${player.objectPath}\u001f${player.imageHandle}\u001f${track.itemPath}'
