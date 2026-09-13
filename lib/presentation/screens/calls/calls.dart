@@ -1,6 +1,6 @@
 import 'package:flutter_ics_homescreen/export.dart';
 
-/// Dial-pad presentation only. Call availability will come from HFP later.
+/// Dial-pad presentation with active call and incoming call integration.
 class CallsPage extends ConsumerStatefulWidget {
   const CallsPage({super.key});
 
@@ -33,49 +33,65 @@ class _CallsPageState extends ConsumerState<CallsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final callState = ref.watch(callStateProvider);
+
+    final isCallActive = callState.status == CallStatus.active ||
+        callState.status == CallStatus.dialing ||
+        callState.status == CallStatus.held;
+
+    return Stack(
       children: [
-        CommonTitle(
-          title: 'Calls',
-          hasBackButton: true,
-          onPressed: () => ref.read(appProvider.notifier).update(AppState.apps),
-        ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 1200;
-              return SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  constraints.maxWidth < 600 ? 24 : 148,
-                  16,
-                  constraints.maxWidth < 600 ? 24 : 64,
-                  180,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: wide ? 1120 : 560),
-                    child: wide
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: _buildNumberPanel()),
-                              const SizedBox(width: 48),
-                              Expanded(child: _buildKeypad()),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              _buildNumberPanel(),
-                              const SizedBox(height: 36),
-                              _buildKeypad(),
-                            ],
+        Column(
+          children: [
+            CommonTitle(
+              title: 'Calls',
+              hasBackButton: true,
+              onPressed: () =>
+                  ref.read(appProvider.notifier).update(AppState.apps),
+            ),
+            Expanded(
+              child: isCallActive
+                  ? const ActiveCallScreen()
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 1200;
+                        return SingleChildScrollView(
+                          padding: EdgeInsets.fromLTRB(
+                            constraints.maxWidth < 600 ? 24 : 148,
+                            16,
+                            constraints.maxWidth < 600 ? 24 : 64,
+                            180,
                           ),
-                  ),
-                ),
-              );
-            },
-          ),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints:
+                                  BoxConstraints(maxWidth: wide ? 1120 : 560),
+                              child: wide
+                                  ? Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(child: _buildNumberPanel()),
+                                        const SizedBox(width: 48),
+                                        Expanded(child: _buildKeypad()),
+                                      ],
+                                    )
+                                  : Column(
+                                      children: [
+                                        _buildNumberPanel(),
+                                        const SizedBox(height: 36),
+                                        _buildKeypad(),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
+        const IncomingCallOverlay(),
       ],
     );
   }
@@ -136,10 +152,6 @@ class _CallsPageState extends ConsumerState<CallsPage> {
               ),
             ],
           ),
-        ),
-        const Text(
-          'Hold 0 for +',
-          style: TextStyle(fontSize: 20, color: AGLDemoColors.jordyBlueColor),
         ),
       ],
     );
@@ -220,69 +232,223 @@ class _CallsPageState extends ConsumerState<CallsPage> {
         const SizedBox(height: 32),
         Row(children: [
           Expanded(
-              child: Center(
-                  child: TextButton(
-            onPressed:
-                _number.isEmpty ? null : () => setState(() => _number = ''),
-            style: TextButton.styleFrom(
-              foregroundColor: AGLDemoColors.periwinkleColor,
-              minimumSize: const Size(64, 64),
-              textStyle: const TextStyle(fontSize: 22),
+            child: Center(
+              child: TextButton(
+                onPressed: _number.isEmpty
+                    ? null
+                    : () => setState(() => _number = ''),
+                style: TextButton.styleFrom(
+                  foregroundColor: AGLDemoColors.periwinkleColor,
+                  minimumSize: const Size(64, 64),
+                  textStyle: const TextStyle(fontSize: 22),
+                ),
+                child: const Text('Clear'),
+              ),
             ),
-            child: const Text('Clear'),
-          ))),
+          ),
           Expanded(
-              child: Center(
-                  child: Semantics(
-                      label: 'Call',
-                      child: SizedBox.square(
-                        dimension: 88,
-                        child: ElevatedButton(
-                          onPressed: null,
-                          style: ElevatedButton.styleFrom(
-                            disabledBackgroundColor: AGLDemoColors.greenColor
-                                .withValues(alpha: 0.18),
-                            disabledForegroundColor:
-                                AGLDemoColors.greenColor.withValues(
-                              alpha: 0.65,
-                            ),
-                            shape: const CircleBorder(),
-                            padding: EdgeInsets.zero,
-                            textStyle: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          child: const Icon(Icons.call, size: 38),
-                        ),
-                      )))),
-          Expanded(
-              child: Center(
-                  child: IconButton(
-            tooltip: 'Delete last digit',
-            iconSize: 32,
-            padding: const EdgeInsets.all(16),
-            color: AGLDemoColors.periwinkleColor,
-            disabledColor: AGLDemoColors.periwinkleColor.withValues(alpha: 0.3),
-            onPressed: _number.isEmpty
-                ? null
-                : () => setState(
-                      () => _number = _number.substring(0, _number.length - 1),
+            child: Center(
+              child: Semantics(
+                label: 'Call',
+                child: SizedBox.square(
+                  dimension: 88,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final dialNumber = _number.isEmpty
+                          ? '+1 (555) 019-2834'
+                          : _number;
+                      ref
+                          .read(callStateProvider.notifier)
+                          .startCall(dialNumber);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AGLDemoColors.greenColor,
+                      foregroundColor: Colors.black,
+                      shape: const CircleBorder(),
+                      padding: EdgeInsets.zero,
+                      elevation: 6,
                     ),
-            icon: const Icon(Icons.backspace_outlined),
-          ))),
+                    child: const Icon(Icons.call, size: 38),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: IconButton(
+                tooltip: 'Delete last digit',
+                iconSize: 32,
+                padding: const EdgeInsets.all(16),
+                color: AGLDemoColors.periwinkleColor,
+                disabledColor:
+                    AGLDemoColors.periwinkleColor.withValues(alpha: 0.3),
+                onPressed: _number.isEmpty
+                    ? null
+                    : () => setState(
+                          () =>
+                              _number = _number.substring(0, _number.length - 1),
+                        ),
+                icon: const Icon(Icons.backspace_outlined),
+              ),
+            ),
+          ),
         ]),
         const SizedBox(height: 12),
-        const Text('Call',
-            textAlign: TextAlign.center,
-            style:
-                TextStyle(fontSize: 20, color: AGLDemoColors.periwinkleColor)),
+        const Text(
+          'Call',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 20,
+            color: AGLDemoColors.periwinkleColor,
+          ),
+        ),
         const SizedBox(height: 24),
-        Text('Calls are currently unavailable.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 20,
-                color: AGLDemoColors.periwinkleColor.withValues(alpha: 0.6))),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AGLDemoColors.backgroundInsetColor.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AGLDemoColors.jordyBlueColor.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.tune, color: AGLDemoColors.jordyBlueColor, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Call Notifier Simulation Controls',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AGLDemoColors.periwinkleColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  // Button 1: Known Contact
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ref.read(callStateProvider.notifier).receiveIncomingCall(
+                            'Jane Doe',
+                            '+1 (555) 234-5678',
+                          );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AGLDemoColors.greenColor,
+                      side: BorderSide(
+                        color: AGLDemoColors.greenColor.withValues(alpha: 0.6),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.ring_volume, size: 18),
+                    label: const Text('Incoming: Jane Doe'),
+                  ),
+                  // Button 2: Work Call
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ref.read(callStateProvider.notifier).receiveIncomingCall(
+                            'Sarah (Manager)',
+                            '+1 (555) 987-6543',
+                          );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AGLDemoColors.jordyBlueColor,
+                      side: BorderSide(
+                        color: AGLDemoColors.jordyBlueColor.withValues(alpha: 0.6),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.business_center_outlined, size: 18),
+                    label: const Text('Incoming: Manager'),
+                  ),
+                  // Button 3: Unknown Call
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ref.read(callStateProvider.notifier).receiveIncomingCall(
+                            'Unknown Caller',
+                            '+1 (800) 555-0199',
+                          );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AGLDemoColors.yellowColor,
+                      side: BorderSide(
+                        color: AGLDemoColors.yellowColor.withValues(alpha: 0.6),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.help_outline, size: 18),
+                    label: const Text('Incoming: Unknown'),
+                  ),
+                  // Button 4: Start Outgoing Call
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ref.read(callStateProvider.notifier).startCall(
+                            '+1 (555) 432-1098',
+                            name: 'Roadside Assistance',
+                          );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AGLDemoColors.periwinkleColor,
+                      side: BorderSide(
+                        color: AGLDemoColors.periwinkleColor.withValues(alpha: 0.6),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.call_made, size: 18),
+                    label: const Text('Start Outgoing Call'),
+                  ),
+                  // Button 5: Reset Call State
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ref.read(callStateProvider.notifier).endCall();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AGLDemoColors.redProgressStrokeColor,
+                      side: BorderSide(
+                        color: AGLDemoColors.redProgressStrokeColor
+                            .withValues(alpha: 0.6),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: const Text('Reset Call Notifier'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

@@ -1,5 +1,4 @@
 import 'package:intl/intl.dart';
-
 import '../../export.dart';
 
 class CustomTopBar extends ConsumerStatefulWidget
@@ -16,6 +15,8 @@ class CustomTopBar extends ConsumerStatefulWidget
 class CustomTopBarState extends ConsumerState<CustomTopBar> {
   @override
   Widget build(BuildContext context) {
+    final isIncomingCall = ref.watch(
+        callStateProvider.select((call) => call.status == CallStatus.incoming));
     final singnalsConnection =
         ref.watch(signalsProvider.select((sinals) => sinals));
     final userName =
@@ -26,10 +27,7 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.transparent,
-      //leadingWidth: 100,
-
       title: Stack(
-        //mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Positioned.fill(
             child: Align(
@@ -42,7 +40,7 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
                       style: const TextStyle(color: Colors.white, fontSize: 26),
                       children: <InlineSpan>[
                         const WidgetSpan(
-                          child: SizedBox(width: 16), // 16px space
+                          child: SizedBox(width: 16),
                         ),
                         TextSpan(
                           text: userName,
@@ -55,14 +53,15 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.center,
-            child: Image.asset(
-              'assets/topBarLogo.png',
-              width: 659,
-              height: 56,
+          if (!isIncomingCall)
+            Align(
+              alignment: Alignment.center,
+              child: Image.asset(
+                'assets/topBarLogo.png',
+                width: 659,
+                height: 56,
+              ),
             ),
-          ),
           Positioned.fill(
             child: Align(
               alignment: Alignment.centerRight,
@@ -96,8 +95,6 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
           ),
         ],
       ),
-
-      // ),
     );
   }
 }

@@ -87,6 +87,7 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
                     child: const VoiceAssistantButton()
                 ),
               ),
+            const IncomingCallOverlay(),
           ],
         ),
         bottomNavigationBar:
