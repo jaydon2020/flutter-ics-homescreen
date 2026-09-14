@@ -1,207 +1,182 @@
 import 'package:flutter_ics_homescreen/export.dart';
 
-/// Dynamic Capsule Top Banner for Incoming Phone Calls.
-/// Inspired by modern Dynamic Island & Automotive HUD notification pills.
+/// Full-width, glanceable incoming-call banner.
 class IncomingCallOverlay extends ConsumerWidget {
   const IncomingCallOverlay({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final callState = ref.watch(callStateProvider);
-    if (callState.status != CallStatus.incoming) {
-      return const SizedBox.shrink();
-    }
+    final call = ref.watch(callStateProvider);
+    if (call.status != CallStatus.incoming) return const SizedBox.shrink();
 
-    final callNotifier = ref.read(callStateProvider.notifier);
-
+    final notifier = ref.read(callStateProvider.notifier);
     return Positioned(
-      top: 12,
-      left: 20,
-      right: 20,
+      top: 8,
+      left: 12,
+      right: 12,
       child: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Material(
-            color: Colors.transparent,
-            elevation: 16,
-            borderRadius: BorderRadius.circular(40),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 740),
-              child: Container(
-                height: 76,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Material(
+          color: Colors.transparent,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 600;
+              return Container(
+                key: const ValueKey('incoming-call-banner'),
+                height: 132,
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 10 : 22,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      AGLDemoColors.gradientBackgroundDarkColor,
-                      AGLDemoColors.backgroundInsetColor,
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
+                  gradient: AGLDemoColors.callNotificationGradient,
                   borderRadius: BorderRadius.circular(40),
-                  border: Border.all(
-                    color: AGLDemoColors.neonBlueColor.withValues(alpha: 0.7),
-                    width: 1.5,
-                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.85),
+                      color: Colors.black.withValues(alpha: 0.55),
                       blurRadius: 20,
-                      offset: const Offset(0, 6),
-                    ),
-                    BoxShadow(
-                      color: AGLDemoColors.neonBlueColor.withValues(alpha: 0.3),
-                      blurRadius: 18,
-                      spreadRadius: 1,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
                 child: Row(
                   children: [
-                    // Avatar Badge with Glowing Indicator Ring
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AGLDemoColors.greenColor.withValues(alpha: 0.15),
-                        border: Border.all(
-                          color: AGLDemoColors.greenColor,
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AGLDemoColors.greenColor
-                                .withValues(alpha: 0.4),
-                            blurRadius: 12,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.person,
-                          size: 32,
-                          color: AGLDemoColors.periwinkleColor,
-                        ),
-                      ),
+                    _NotifierAction(
+                      label: 'Decline',
+                      icon: Icons.call_end_rounded,
+                      color: AGLDemoColors.callDangerColor,
+                      compact: compact,
+                      onPressed: notifier.rejectCall,
                     ),
-                    const SizedBox(width: 16),
-
-                    // Name & Subtitle Info
                     Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            callState.name.isEmpty
-                                ? 'Unknown Caller'
-                                : callState.name,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 0.3,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AGLDemoColors.greenColor,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${callState.number} • Incoming Call',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AGLDemoColors.jordyBlueColor,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ],
-                          ),
-                        ],
+                      child: Center(
+                        child: _CallerDetails(call: call, compact: compact),
                       ),
                     ),
-
-                    const SizedBox(width: 12),
-
-                    // Driver Call Actions (Decline / Accept Pills)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Decline Action
-                        Semantics(
-                          button: true,
-                          label: 'Decline Call',
-                          child: SizedBox(
-                            width: 52,
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: callNotifier.rejectCall,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    AGLDemoColors.redProgressStrokeColor,
-                                foregroundColor: Colors.white,
-                                shape: const CircleBorder(),
-                                padding: EdgeInsets.zero,
-                                elevation: 4,
-                                shadowColor: AGLDemoColors
-                                    .redProgressStrokeColor
-                                    .withValues(alpha: 0.4),
-                              ),
-                              child: const Icon(
-                                Icons.call_end,
-                                size: 26,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        // Accept Action
-                        Semantics(
-                          button: true,
-                          label: 'Accept Call',
-                          child: SizedBox(
-                            width: 52,
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: callNotifier.acceptCall,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AGLDemoColors.greenColor,
-                                foregroundColor: Colors.black,
-                                shape: const CircleBorder(),
-                                padding: EdgeInsets.zero,
-                                elevation: 4,
-                                shadowColor: AGLDemoColors.greenColor
-                                    .withValues(alpha: 0.4),
-                              ),
-                              child: const Icon(
-                                Icons.call,
-                                size: 26,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    _NotifierAction(
+                      label: 'Answer',
+                      icon: Icons.call_rounded,
+                      color: AGLDemoColors.greenColor,
+                      compact: compact,
+                      darkForeground: true,
+                      onPressed: notifier.acceptCall,
                     ),
                   ],
                 ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CallerDetails extends StatelessWidget {
+  const _CallerDetails({required this.call, required this.compact});
+
+  final CallState call;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Text(
+          call.name.isEmpty ? 'Unknown caller' : call.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            fontSize: compact ? 18 : 24,
+            height: 1.1,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          compact ? call.number : 'Incoming call  •  ${call.number}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            fontSize: compact ? 12 : 15,
+            color: AGLDemoColors.periwinkleColor.withValues(alpha: 0.8),
+          ),
+        ),
+      ],
+    );
+
+    if (compact) return details;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: AGLDemoColors.callControlColor,
+          ),
+          child: const Icon(
+            Icons.person_rounded,
+            size: 38,
+            color: AGLDemoColors.periwinkleColor,
+          ),
+        ),
+        const SizedBox(width: 18),
+        Flexible(child: details),
+      ],
+    );
+  }
+}
+
+class _NotifierAction extends StatelessWidget {
+  const _NotifierAction({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.compact,
+    required this.onPressed,
+    this.darkForeground = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool compact;
+  final VoidCallback onPressed;
+  final bool darkForeground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$label call',
+      child: InkWell(
+        key: ValueKey('incoming-${label.toLowerCase()}'),
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          width: compact ? 72 : 112,
+          height: 88,
+          child: Center(
+            child: Container(
+              width: compact ? 54 : 64,
+              height: compact ? 54 : 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+              ),
+              child: Icon(
+                icon,
+                size: compact ? 25 : 30,
+                color: darkForeground
+                    ? AGLDemoColors.backgroundInsetColor
+                    : Colors.white,
               ),
             ),
           ),

@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import '../../export.dart';
 
 class AGLDemoColors {
@@ -18,4 +16,17 @@ class AGLDemoColors {
   static const backgroundInsetColor = Color(0XFF0C1039);
   static const gradientBackgroundDarkColor = Color(0XFF0D113F);
   static const redProgressStrokeColor = Color(0XFFFF3D00);
+  static const callSurfaceColor = Color(0XFF101638);
+  static const callControlColor = Color(0XFF182451);
+  static const callDangerColor = Color(0XFFFF4D5E);
+  static const callNotificationGradient = LinearGradient(
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+    stops: [0, 0.5, 1],
+    colors: [
+      Color(0XFF02030A),
+      Color(0XFF090D1D),
+      Color(0XFF02030A),
+    ],
+  );
 }

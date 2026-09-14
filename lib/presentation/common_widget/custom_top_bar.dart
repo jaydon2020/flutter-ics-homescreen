@@ -15,8 +15,14 @@ class CustomTopBar extends ConsumerStatefulWidget
 class CustomTopBarState extends ConsumerState<CustomTopBar> {
   @override
   Widget build(BuildContext context) {
-    final isIncomingCall = ref.watch(
-        callStateProvider.select((call) => call.status == CallStatus.incoming));
+    final callStatus =
+        ref.watch(callStateProvider.select((call) => call.status));
+    final appState = ref.watch(appProvider);
+    final hasCallOverlay = callStatus == CallStatus.incoming ||
+        (appState != AppState.calls &&
+            (callStatus == CallStatus.dialing ||
+                callStatus == CallStatus.active ||
+                callStatus == CallStatus.held));
     final singnalsConnection =
         ref.watch(signalsProvider.select((sinals) => sinals));
     final userName =
@@ -53,7 +59,7 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
               ),
             ),
           ),
-          if (!isIncomingCall)
+          if (!hasCallOverlay)
             Align(
               alignment: Alignment.center,
               child: Image.asset(
