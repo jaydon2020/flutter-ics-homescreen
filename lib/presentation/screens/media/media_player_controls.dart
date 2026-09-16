@@ -1,5 +1,6 @@
 import 'package:dart_mpd/dart_mpd.dart';
 import 'package:flutter_ics_homescreen/core/utils/helpers.dart';
+import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_media_notifier.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/audio_settings/widget/slider_widgets.dart';
 
@@ -15,7 +16,9 @@ String timeToString(Duration time) {
 }
 
 class MediaPlayerControls extends ConsumerStatefulWidget {
-  const MediaPlayerControls({super.key});
+  const MediaPlayerControls({super.key, this.bluetooth = false});
+
+  final bool bluetooth;
 
   @override
   ConsumerState<MediaPlayerControls> createState() =>
@@ -25,13 +28,35 @@ class MediaPlayerControls extends ConsumerStatefulWidget {
 class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
   @override
   Widget build(BuildContext context) {
-    var currentSong = ref.watch(
-        mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.song));
+    final currentSong = widget.bluetooth
+        ? null
+        : ref.watch(mediaPlayerStateProvider
+            .select((mediaplayer) => mediaplayer.song));
+    final bluetoothMedia = widget.bluetooth
+        ? ref.watch(bluetoothMediaProvider.select((state) => (
+              artist: state.artist,
+              connected: state.connected,
+              duration: state.duration,
+              loading: state.loading,
+              position: state.position,
+              title: state.title,
+            )))
+        : null;
 
     String songName = "";
     String songDetail = "";
     Duration songLength = Duration.zero;
-    if (currentSong != null) {
+    Duration? songPosition;
+    if (bluetoothMedia != null) {
+      songName = bluetoothMedia.loading
+          ? 'Connecting to Bluetooth media…'
+          : !bluetoothMedia.connected
+              ? 'No Bluetooth media connection'
+              : bluetoothMedia.title;
+      songDetail = bluetoothMedia.artist;
+      songLength = bluetoothMedia.duration;
+      songPosition = bluetoothMedia.position;
+    } else if (currentSong != null) {
       songName = currentSong.title;
       songDetail = currentSong.artist;
       songLength = currentSong.duration;
@@ -42,77 +67,99 @@ class _MediaPlayerControlsState extends ConsumerState<MediaPlayerControls> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(
           songName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w400,
               shadows: [Helpers.dropShadowRegular],
               fontSize: 44),
         ),
-        MediaPlayerControlsDetails(songDetail: songDetail),
-        MediaPlayerControlsSlider(songLength: songLength),
-        const MediaPlayerControlsActions(),
+        MediaPlayerControlsDetails(
+            songDetail: songDetail, bluetooth: widget.bluetooth),
+        MediaPlayerControlsSlider(
+            songLength: songLength, songPosition: songPosition),
+        MediaPlayerControlsActions(bluetooth: widget.bluetooth),
       ]),
     );
   }
 }
 
-class MediaPlayerControlsDetails extends StatefulWidget {
-  const MediaPlayerControlsDetails({super.key, required this.songDetail});
+class MediaPlayerControlsDetails extends ConsumerStatefulWidget {
+  const MediaPlayerControlsDetails(
+      {super.key, required this.songDetail, this.bluetooth = false});
   final String songDetail;
+  final bool bluetooth;
 
   @override
-  State<MediaPlayerControlsDetails> createState() =>
+  ConsumerState<MediaPlayerControlsDetails> createState() =>
       _MediaPlayerControlsDetailsState();
 }
 
 class _MediaPlayerControlsDetailsState
-    extends State<MediaPlayerControlsDetails> {
+    extends ConsumerState<MediaPlayerControlsDetails> {
   bool isShuffleEnabled = false;
   bool isRepeatEnabled = false;
   @override
   Widget build(BuildContext context) {
+    final bluetoothMedia = widget.bluetooth
+        ? ref.watch(bluetoothMediaProvider.select((state) => (
+              connected: state.connected,
+              repeatEnabled: state.repeatEnabled,
+              shuffleEnabled: state.shuffleEnabled,
+            )))
+        : null;
+    final shuffleEnabled =
+        bluetoothMedia?.shuffleEnabled ?? isShuffleEnabled;
+    final repeatEnabled = bluetoothMedia?.repeatEnabled ?? isRepeatEnabled;
+    final enabled = bluetoothMedia?.connected ?? true;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Text(
-              widget.songDetail,
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                  fontSize: 40,
-                  shadows: [Helpers.dropShadowRegular]),
-            ),
+          child: Text(
+            widget.songDetail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w400,
+                fontSize: 40,
+                shadows: [Helpers.dropShadowRegular]),
           ),
         ),
         Row(
           children: [
             InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () {
-                  setState(() {
-                    isShuffleEnabled = !isShuffleEnabled;
-                  });
-                },
+                onTap: enabled
+                    ? () => widget.bluetooth
+                        ? ref
+                            .read(bluetoothMediaProvider.notifier)
+                            .toggleShuffle()
+                        : setState(
+                            () => isShuffleEnabled = !isShuffleEnabled)
+                    : null,
                 child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: SvgPicture.asset(
-                      "assets/${isShuffleEnabled ? "ShufflePressed.svg" : "Shuffle.svg"}",
+                      "assets/${shuffleEnabled ? "ShufflePressed.svg" : "Shuffle.svg"}",
                       width: 48,
                     ))),
             InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () {
-                  setState(() {
-                    isRepeatEnabled = !isRepeatEnabled;
-                  });
-                },
+                onTap: enabled
+                    ? () => widget.bluetooth
+                        ? ref
+                            .read(bluetoothMediaProvider.notifier)
+                            .toggleRepeat()
+                        : setState(() => isRepeatEnabled = !isRepeatEnabled)
+                    : null,
                 child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: SvgPicture.asset(
-                      "assets/${isRepeatEnabled ? "RepeatPressed.svg" : "Repeat.svg"}",
+                      "assets/${repeatEnabled ? "RepeatPressed.svg" : "Repeat.svg"}",
                       width: 48,
                     ))),
           ],
@@ -123,19 +170,26 @@ class _MediaPlayerControlsDetailsState
 }
 
 class MediaPlayerControlsSlider extends ConsumerWidget {
-  const MediaPlayerControlsSlider({super.key, required this.songLength});
+  const MediaPlayerControlsSlider(
+      {super.key, required this.songLength, this.songPosition});
 
   final Duration songLength;
+  final Duration? songPosition;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    var songPosition = ref.watch(mediaPlayerPositionProvider);
+    Duration currentPosition =
+        songPosition ?? ref.watch(mediaPlayerPositionProvider);
 
-    if (songLength == Duration.zero) {
-      songPosition = Duration.zero;
+    if (songLength <= Duration.zero) {
+      currentPosition = Duration.zero;
+    } else if (currentPosition > songLength) {
+      currentPosition = songLength;
+    } else if (currentPosition.isNegative) {
+      currentPosition = Duration.zero;
     }
     String songLengthString = timeToString(songLength);
-    String songPositionString = timeToString(songPosition);
+    String songPositionString = timeToString(currentPosition);
 
     return Column(children: [
       SizedBox(
@@ -153,18 +207,22 @@ class MediaPlayerControlsSlider extends ConsumerWidget {
           ),
           child: Slider(
             max: songLength.inMilliseconds.toDouble(),
-            value: songPosition.inMilliseconds.toDouble(),
+            value: currentPosition.inMilliseconds
+                .clamp(0, songLength.inMilliseconds)
+                .toDouble(),
             onChangeStart: (double value) {
               // Disable timer so position will not change while control is
               // being dragged.  It will be re-enabled via the playback state
               // update from MPD.
               ref.read(mediaPlayerPositionProvider.notifier).pause();
             },
-            onChanged: (double newValue) {
-              ref
-                  .read(mediaPlayerPositionProvider.notifier)
-                  .set(Duration(milliseconds: newValue.toInt()));
-            },
+            onChanged: songPosition != null
+                ? null
+                : (double newValue) {
+                    ref
+                        .read(mediaPlayerPositionProvider.notifier)
+                        .set(Duration(milliseconds: newValue.toInt()));
+                  },
             onChangeEnd: (double newValue) {
               ref.read(mpdClientProvider).seek(newValue.toInt());
             },
@@ -204,7 +262,9 @@ class MediaPlayerControlsSlider extends ConsumerWidget {
 }
 
 class MediaPlayerControlsActions extends ConsumerStatefulWidget {
-  const MediaPlayerControlsActions({super.key});
+  const MediaPlayerControlsActions({super.key, this.bluetooth = false});
+
+  final bool bluetooth;
 
   @override
   ConsumerState<MediaPlayerControlsActions> createState() =>
@@ -217,18 +277,29 @@ class _MediaPlayerControlsActionsState
 
   @override
   Widget build(BuildContext context) {
-    bool isPlaying = ref.watch(mediaPlayerStateProvider
-            .select((mediaplayer) => mediaplayer.playState)) ==
-        PlayState.playing;
+    final bluetoothMedia = widget.bluetooth
+        ? ref.watch(bluetoothMediaProvider.select((state) => (
+              connected: state.connected,
+              playState: state.playState,
+            )))
+        : null;
+    final isPlaying = bluetoothMedia != null
+        ? bluetoothMedia.playState == PlayState.playing
+        : ref.watch(mediaPlayerStateProvider
+                .select((mediaplayer) => mediaplayer.playState)) ==
+            PlayState.playing;
+    final enabled = bluetoothMedia?.connected ?? true;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         InkWell(
             customBorder: const CircleBorder(),
-            onTap: () {
-              ref.read(mpdClientProvider).previous();
-            },
+            onTap: enabled
+                ? () => widget.bluetooth
+                    ? ref.read(bluetoothMediaProvider.notifier).previous()
+                    : ref.read(mpdClientProvider).previous()
+                : null,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: SvgPicture.asset(
@@ -236,28 +307,24 @@ class _MediaPlayerControlsActionsState
                 width: 48,
               ),
             )),
-        const SizedBox(
-          width: 120,
+        SizedBox(
+          width: widget.bluetooth ? 48 : 120,
         ),
         InkWell(
             customBorder: const CircleBorder(),
-            onTap: () {
-              if (isPlaying) {
-                ref.read(mpdClientProvider).pause();
-              } else {
-                ref.read(mpdClientProvider).play();
-              }
-            },
-            onTapDown: (details) {
-              setState(() {
-                isPressed = true;
-              });
-            },
-            onTapUp: (details) {
-              setState(() {
-                isPressed = false;
-              });
-            },
+            onTap: enabled
+                ? () => widget.bluetooth
+                    ? ref.read(bluetoothMediaProvider.notifier).playPause()
+                    : isPlaying
+                        ? ref.read(mpdClientProvider).pause()
+                        : ref.read(mpdClientProvider).play()
+                : null,
+            onTapDown:
+                enabled ? (details) => setState(() => isPressed = true) : null,
+            onTapUp:
+                enabled ? (details) => setState(() => isPressed = false) : null,
+            onTapCancel:
+                enabled ? () => setState(() => isPressed = false) : null,
             child: Container(
               width: 64,
               height: 64,
@@ -272,14 +339,16 @@ class _MediaPlayerControlsActionsState
                 size: 60,
               ),
             )),
-        const SizedBox(
-          width: 120,
+        SizedBox(
+          width: widget.bluetooth ? 48 : 120,
         ),
         InkWell(
             customBorder: const CircleBorder(),
-            onTap: () {
-              ref.read(mpdClientProvider).next();
-            },
+            onTap: enabled
+                ? () => widget.bluetooth
+                    ? ref.read(bluetoothMediaProvider.notifier).next()
+                    : ref.read(mpdClientProvider).next()
+                : null,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: SvgPicture.asset(
