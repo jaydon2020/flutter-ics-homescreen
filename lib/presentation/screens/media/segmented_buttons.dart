@@ -2,10 +2,14 @@ import 'package:flutter_ics_homescreen/export.dart';
 
 class SegmentedButtons extends StatefulWidget {
   const SegmentedButtons(
-      {super.key, required this.navItems, required this.selectedNav});
+      {super.key,
+      required this.navItems,
+      required this.selectedNav,
+      this.onChanged});
 
   final List<String> navItems;
   final String selectedNav;
+  final ValueChanged<String>? onChanged;
   @override
   State<SegmentedButtons> createState() => _SegmentedButtonsState();
 }
@@ -19,6 +23,14 @@ class _SegmentedButtonsState extends State<SegmentedButtons> {
     navItems = widget.navItems;
     selectedNav = widget.selectedNav;
     super.initState();
+  }
+
+  @override
+  void didUpdateWidget(covariant SegmentedButtons oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedNav != oldWidget.selectedNav) {
+      selectedNav = widget.selectedNav;
+    }
   }
 
   @override
@@ -59,6 +71,7 @@ class _SegmentedButtonsState extends State<SegmentedButtons> {
                             setState(() {
                               selectedNav = e;
                             });
+                            widget.onChanged?.call(e);
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(

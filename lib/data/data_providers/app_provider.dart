@@ -17,6 +17,7 @@ import 'package:flutter_ics_homescreen/data/data_providers/storage_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/storage_client_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/mpd_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/play_controller.dart';
+import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_media_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/voice_agent_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/voice_assistant_notifier.dart';
 import 'package:flutter_ics_homescreen/export.dart';
@@ -154,11 +155,43 @@ final playStateProvider = StateProvider<bool>((ref) {
       mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.playState));
   final radioPlaying =
       ref.watch(radioStateProvider.select((radio) => radio.playing));
-  return (mediaPlayState == PlayState.playing || radioPlaying);
+  final bluetoothPlaying = ref.watch(bluetoothMediaProvider
+      .select((bluetooth) => bluetooth.playState == PlayState.playing));
+  return mediaPlayState == PlayState.playing ||
+      radioPlaying ||
+      bluetoothPlaying;
 });
 
 final playControllerProvider = Provider((ref) {
-  return PlayController(ref: ref);
+  final controller = PlayController(ref: ref);
+  // Listen without rebuilding the controller: retain the last source for
+  // resume, and preserve the media source saved while FM is playing.
+  ref.listen<bool>(
+    mediaPlayerStateProvider.select(
+      (state) => state.playState == PlayState.playing,
+    ),
+    (_, playing) {
+      if (playing) controller.setSource(PlaySource.media);
+    },
+    fireImmediately: true,
+  );
+  ref.listen<bool>(
+    radioStateProvider.select((state) => state.playing),
+    (_, playing) {
+      if (playing) controller.setSource(PlaySource.radio);
+    },
+    fireImmediately: true,
+  );
+  ref.listen<bool>(
+    bluetoothMediaProvider.select(
+      (state) => state.playState == PlayState.playing,
+    ),
+    (_, playing) {
+      if (playing) controller.setSource(PlaySource.bluetooth);
+    },
+    fireImmediately: true,
+  );
+  return controller;
 });
 
 final usersProvider =
