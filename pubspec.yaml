@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"
+  sdk: ">=3.10.1 <4.0.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -59,6 +59,14 @@ dependencies:
   dart_mpd: ^0.4.1
   mime: ^2.0.0
   bluez_native: ^0.3.1
+  bluez_obex_native:
+    git:
+      url: https://github.com/jaydon2020/bluez_obex_native.git
+      ref: 5f8a36d503a75e3e1b555b510a8debfee46d4816
+  pipewire_telephony_native:
+    git:
+      url: https://github.com/jaydon2020/pipewire_telephony_native.git
+      ref: 22c66389a1b9b50b3e5d2a56592dcc5cf79afe58
 
 dependency_overrides:
   code_assets: 1.1.0

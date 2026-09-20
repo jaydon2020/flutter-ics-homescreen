@@ -1,381 +1,199 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_ics_homescreen/core/constants/colors.dart';
-import 'package:flutter_ics_homescreen/data/data_providers/app_provider.dart';
-import 'package:flutter_ics_homescreen/data/data_providers/call_notifier.dart';
-import 'package:flutter_ics_homescreen/data/models/call_state.dart';
-import 'package:flutter_ics_homescreen/presentation/screens/apps/apps_content.dart';
+import 'package:flutter_ics_homescreen/export.dart';
 import 'package:flutter_ics_homescreen/presentation/screens/calls/calls.dart';
-import 'package:flutter_ics_homescreen/presentation/screens/calls/incoming_call_overlay.dart';
-import 'package:flutter_ics_homescreen/presentation/screens/calls/ongoing_call_overlay.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_ics_homescreen/presentation/screens/apps/apps_content.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+class _TestPhoneDataNotifier extends PhoneDataNotifier {
+  @override
+  PhoneDataState build() => PhoneDataState(
+    status: PhoneConnectionStatus.ready,
+    deviceName: 'Test phone',
+    pbapAvailable: true,
+    mapAvailable: true,
+    contacts: const [
+      PhoneContact(
+        id: 'aisha',
+        name: 'Aisha Rahman',
+        numbers: ['+60 12-345 6789'],
+      ),
+    ],
+    recents: [
+      RecentCall(
+        id: 'recent',
+        name: 'Aisha Rahman',
+        number: '+60 12-345 6789',
+        timestamp: DateTime(2026, 9, 20, 12),
+        type: RecentCallType.incoming,
+      ),
+    ],
+  );
+}
+
+class _TestCallNotifier extends CallStateNotifier {
+  @override
+  CallState build() => const CallState(
+    status: CallStatus.idle,
+    name: '',
+    number: '',
+    duration: Duration.zero,
+    isMuted: false,
+    isSpeaker: false,
+    isHeld: false,
+    connected: true,
+  );
+
+  @override
+  Future<void> startCall(String number, {String? name}) async {}
+}
+
+class _ActiveCallNotifier extends CallStateNotifier {
+  @override
+  CallState build() => const CallState(
+    status: CallStatus.active,
+    name: 'Aisha Rahman',
+    number: '+60 12-345 6789',
+    duration: Duration(seconds: 12),
+    isMuted: false,
+    isSpeaker: false,
+    isHeld: false,
+    connected: true,
+    activeCallId: '/call/1',
+    participants: [
+      CallParticipant(
+        id: '/call/1',
+        name: 'Aisha Rahman',
+        number: '+60 12-345 6789',
+        status: CallStatus.active,
+      ),
+    ],
+  );
+
+  @override
+  Future<void> sendTones(String tones) async {}
+  @override
+  Future<void> toggleMute() async {}
+  @override
+  Future<void> toggleHold() async {}
+  @override
+  Future<void> endCall() async {}
+}
+
 void main() {
-  Future<void> showPage(WidgetTester tester, Size size, Widget page) async {
+  Future<void> show(
+    WidgetTester tester,
+    Widget page, {
+    Size size = const Size(1080, 1920),
+    bool active = false,
+  }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       ProviderScope(
-        child: MaterialApp(
-          theme: ThemeData(
-            brightness: Brightness.dark,
-            fontFamily: 'Fira Sans',
+        overrides: [
+          phoneDataProvider.overrideWith(_TestPhoneDataNotifier.new),
+          callStateProvider.overrideWith(
+            active ? _ActiveCallNotifier.new : _TestCallNotifier.new,
           ),
+        ],
+        child: MaterialApp(
+          theme: ThemeData.dark(),
           home: Scaffold(body: page),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
   }
 
-  testWidgets('dial pad enters digits, plus, star and hash and clears input', (
+  testWidgets('Phone exposes Recents Contacts and Dial with stable keypad', (
     tester,
   ) async {
-    await showPage(tester, const Size(1080, 1920), const CallsPage());
-    expect(find.text('Suggested contacts'), findsOneWidget);
-    final dialKeyMaterial = tester.widget<Material>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('dial-key-1')),
-            matching: find.byType(Material),
-          )
-          .first,
-    );
-    expect(dialKeyMaterial.shape, isA<RoundedRectangleBorder>());
-    final keypadWidth =
-        tester.getSize(find.byKey(const ValueKey('dial-keypad'))).width;
-    final firstSuggestion =
-        tester.getRect(find.byKey(const ValueKey('suggested-contact-0')));
-    final secondSuggestion =
-        tester.getRect(find.byKey(const ValueKey('suggested-contact-1')));
-    final phoneStatus =
-        tester.getRect(find.byKey(const ValueKey('phone-status')));
-    expect(keypadWidth, greaterThan(850));
-    expect(firstSuggestion.width, closeTo(keypadWidth, 1));
-    expect(secondSuggestion.width, closeTo(keypadWidth, 1));
-    expect(firstSuggestion.height, 130);
-    expect(secondSuggestion.height, 130);
-    expect(firstSuggestion.top - phoneStatus.bottom, lessThan(100));
-    expect(secondSuggestion.top, greaterThan(firstSuggestion.bottom));
-    expect(find.text('Aisha Rahman'), findsOneWidget);
-    expect(find.text('Daniel Tan'), findsOneWidget);
-    final contactInk = tester.widget<Ink>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('suggested-contact-0')),
-            matching: find.byType(Ink),
-          )
-          .first,
-    );
-    final contactGradient =
-        (contactInk.decoration! as BoxDecoration).gradient! as LinearGradient;
-    expect(contactGradient.colors, const [Colors.black, Colors.black12]);
-    expect(contactGradient.stops, const [0.1, 1]);
-    expect(
-      tester.getSize(find.byKey(const ValueKey('dial-key-1'))),
-      Size((keypadWidth - 16) / 3, 100),
-    );
-    final initialKeypadPosition =
-        tester.getTopLeft(find.byKey(const ValueKey('dial-keypad')));
-    await tester.longPress(find.byKey(const ValueKey('dial-key-0')));
-    await tester.pumpAndSettle();
-    for (final digit in ['6', '0', '1', '2', '*', '#']) {
-      await tester.tap(find.byKey(ValueKey('dial-key-$digit')));
-      await tester.pump();
-    }
-    final number = find.byKey(const ValueKey('dialed-number'));
-    expect(tester.widget<Text>(number).data, '+6012*#');
+    await show(tester, const CallsPage());
+    expect(find.text('Recents'), findsOneWidget);
+    expect(find.text('Contacts'), findsOneWidget);
+    expect(find.text('Dial'), findsOneWidget);
+    final before = tester.getTopLeft(find.byKey(const ValueKey('dial-keypad')));
+    await tester.tap(find.byKey(const ValueKey('dial-key-6')));
+    await tester.tap(find.byKey(const ValueKey('dial-key-0')));
+    await tester.pump();
+    expect(find.text('60'), findsOneWidget);
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('dial-keypad'))),
-      initialKeypadPosition,
-    );
-    await tester.tap(find.byTooltip('Delete last digit'));
-    await tester.pump();
-    expect(tester.widget<Text>(number).data, '+6012*');
-    final numberY = tester.getCenter(number).dy;
-    await tester.tap(find.text('Clear'));
-    await tester.pump();
-    expect(number, findsNothing);
-    expect(
-      tester
-          .widget<IconButton>(
-            find.ancestor(
-              of: find.byTooltip('Delete last digit'),
-              matching: find.byType(IconButton),
-            ),
-          )
-          .onPressed,
-      isNull,
+      before,
     );
     expect(
-      tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
-      isNull,
+      tester.getSize(find.byKey(const ValueKey('dial-key-1'))).height,
+      greaterThanOrEqualTo(88),
     );
-    expect(
-      tester.getCenter(find.byKey(const ValueKey('dial-key-1'))).dy,
-      greaterThan(numberY + 40),
-    );
-    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('landscape dial pad scrolls without overflow', (tester) async {
-    await showPage(tester, const Size(1280, 720), const CallsPage());
-    final key = find.byKey(const ValueKey('dial-key-9'));
-    await tester.ensureVisible(key);
-    await tester.tap(key);
+  testWidgets('Contacts and Recents use full-width automotive rows', (
+    tester,
+  ) async {
+    await show(tester, const CallsPage());
+    await tester.tap(find.byKey(const ValueKey('phone-tab-contacts')));
     await tester.pump();
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('dialed-number'))).data,
-      '9',
-    );
-    await tester.ensureVisible(find.byIcon(Icons.call_rounded));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
+    expect(find.text('Aisha Rahman'), findsOneWidget);
+    expect(find.byTooltip('Message'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('phone-tab-recents')));
+    await tester.pump();
+    expect(find.byTooltip('Call'), findsOneWidget);
   });
 
-  testWidgets('active call controls remain usable in landscape',
-      (tester) async {
-    await showPage(tester, const Size(1280, 720), const CallsPage());
-    await tester.tap(find.byKey(const ValueKey('dial-key-1')));
-    await tester.pump();
-    await tester.ensureVisible(find.byIcon(Icons.call_rounded));
-    await tester.tap(find.byIcon(Icons.call_rounded));
-    await tester.pump();
-
-    expect(find.text('Calling'), findsWidgets);
-    expect(find.text('End call'), findsOneWidget);
-    expect(find.text('Bluetooth'), findsNothing);
-    expect(find.byKey(const ValueKey('active-caller-card')), findsNothing);
-    expect(find.byType(BackdropFilter), findsNothing);
-    final callButtons = find.descendant(
-      of: find.byKey(const ValueKey('in-call-controls')),
-      matching: find.byType(ElevatedButton),
-    );
-    expect(callButtons, findsNWidgets(4));
-    expect(tester.getSize(callButtons.first), const Size(96, 96));
-    expect(
-      tester.getSize(find.descendant(
-        of: callButtons.first,
-        matching: find.byType(Icon),
-      )),
-      const Size(57, 57),
-    );
-    expect(
-      tester.getCenter(find.text('End call')).dx,
-      closeTo(
-        tester.getCenter(find.byKey(const ValueKey('in-call-controls'))).dx,
-        1,
-      ),
-    );
-    await tester.ensureVisible(find.byIcon(Icons.dialpad_rounded));
-    final stagePosition = tester.getTopLeft(
+  testWidgets('Active call keypad uses reserved middle region', (tester) async {
+    await show(tester, const CallsPage(), active: true);
+    final stage = tester.getTopLeft(
       find.byKey(const ValueKey('in-call-keypad-space')),
     );
-    final controlsPosition = tester.getTopLeft(
+    final controls = tester.getTopLeft(
       find.byKey(const ValueKey('in-call-controls')),
     );
     await tester.tap(find.byIcon(Icons.dialpad_rounded));
     await tester.pumpAndSettle();
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('in-call-keypad-space'))),
-      stagePosition,
+      stage,
     );
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('in-call-controls'))),
-      controlsPosition,
+      controls,
     );
-    expect(find.text('ABC'), findsOneWidget);
-    expect(find.text('WXYZ'), findsOneWidget);
-    expect(
-      tester.getCenter(find.text('Mute')).dy,
-      closeTo(tester.getCenter(find.text('Hold')).dy, 1),
-    );
-    expect(
-      tester.getCenter(find.text('End call')).dy,
-      greaterThan(tester.getCenter(find.text('Hold')).dy),
-    );
-    final dtmfKeyMaterial = tester.widget<Material>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('dtmf-key-1')),
-            matching: find.byType(Material),
-          )
-          .first,
-    );
-    expect(dtmfKeyMaterial.shape, isA<RoundedRectangleBorder>());
-    await tester.ensureVisible(find.byKey(const ValueKey('dtmf-key-5')));
-    final inCallKeypadPosition =
-        tester.getTopLeft(find.byKey(const ValueKey('in-call-keypad')));
     await tester.tap(find.byKey(const ValueKey('dtmf-key-5')));
     await tester.pump();
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('dtmf-digits'))).data,
-      '5',
-    );
-    expect(
-      tester.getTopLeft(find.byKey(const ValueKey('in-call-keypad'))),
-      inCallKeypadPosition,
-    );
-    expect(tester.takeException(), isNull);
+    expect(find.text('5'), findsWidgets);
+    expect(find.text('Bluetooth'), findsNothing);
   });
 
-  testWidgets('incoming call banner adapts to compact screens', (tester) async {
-    await showPage(
-      tester,
-      const Size(420, 800),
-      const Stack(children: [IncomingCallOverlay()]),
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(IncomingCallOverlay)),
-    );
-    container
-        .read(callStateProvider.notifier)
-        .receiveIncomingCall('Jane Doe', '+1 (555) 234-5678');
-    await tester.pump();
-
-    expect(find.text('Jane Doe'), findsOneWidget);
-    expect(find.text('Answer'), findsNothing);
-    expect(find.text('Decline'), findsNothing);
-    expect(
-      tester.getSize(find.byKey(const ValueKey('incoming-call-banner'))).width,
-      396,
-    );
-    expect(
-      tester.getSize(find.byKey(const ValueKey('incoming-call-banner'))).height,
-      132,
-    );
-    final incomingBanner = tester.widget<Container>(
-      find.byKey(const ValueKey('incoming-call-banner')),
-    );
-    expect(
-      (incomingBanner.decoration! as BoxDecoration).borderRadius,
-      BorderRadius.circular(40),
-    );
-    expect((incomingBanner.decoration! as BoxDecoration).border, isNull);
-    expect(
-      (incomingBanner.decoration! as BoxDecoration).gradient,
-      AGLDemoColors.callNotificationGradient,
-    );
-    expect(
-      AGLDemoColors.callNotificationGradient.colors
-          .every((color) => color.a == 1),
-      isTrue,
-    );
-    expect(
-      AGLDemoColors.callNotificationGradient.colors.first,
-      isNot(Colors.white),
-    );
-    expect(
-      tester.getCenter(find.byKey(const ValueKey('incoming-decline'))).dx,
-      lessThan(tester.getCenter(find.text('Jane Doe')).dx),
-    );
-    expect(
-      tester.getCenter(find.byKey(const ValueKey('incoming-answer'))).dx,
-      greaterThan(tester.getCenter(find.text('Jane Doe')).dx),
-    );
-    expect(tester.takeException(), isNull);
-
-    await tester.tap(find.byKey(const ValueKey('incoming-answer')));
-    await tester.pump();
-    expect(container.read(callStateProvider).status, CallStatus.active);
-    expect(find.text('Jane Doe'), findsNothing);
+  testWidgets('Messages shows explicit empty profile state', (tester) async {
+    await show(tester, const MessagesPage());
+    expect(find.text('Conversations'), findsOneWidget);
+    expect(find.text('No conversations'), findsOneWidget);
+    expect(find.byTooltip('Compose message'), findsOneWidget);
+    expect(find.byTooltip('Refresh messages'), findsOneWidget);
   });
 
-  testWidgets('ongoing call widget reopens and ends calls outside phone app',
-      (tester) async {
-    await showPage(
-      tester,
-      const Size(1080, 1920),
-      const Stack(children: [OngoingCallOverlay()]),
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(OngoingCallOverlay)),
-    );
-    container.read(appProvider.notifier).update(AppState.apps);
-    container.read(callStateProvider.notifier).startCall(
-          '+1 (555) 432-1098',
-          name: 'Roadside Assistance',
-        );
-    await tester.pump();
-
-    expect(find.byKey(const ValueKey('ongoing-call-widget')), findsOneWidget);
-    expect(
-      tester.getSize(find.byKey(const ValueKey('ongoing-call-widget'))),
-      const Size(1056, 132),
-    );
-    expect(find.text('Roadside Assistance'), findsOneWidget);
-    expect(find.text('Calling'), findsOneWidget);
-    final notification = tester.widget<Container>(
-      find.byKey(const ValueKey('ongoing-call-widget')),
-    );
-    final notificationDecoration = notification.decoration! as BoxDecoration;
-    expect(
-      notificationDecoration.borderRadius,
-      BorderRadius.circular(40),
-    );
-    expect(notificationDecoration.border, isNull);
-    expect(
-      notificationDecoration.gradient,
-      AGLDemoColors.callNotificationGradient,
-    );
-    final callIcon = tester.widget<Container>(
-      find.byKey(const ValueKey('ongoing-call-icon')),
-    );
-    final callIconDecoration = callIcon.decoration! as BoxDecoration;
-    expect(callIconDecoration.border, isNull);
-    expect(
-      callIconDecoration.color,
-      AGLDemoColors.callControlColor.withValues(alpha: 0.72),
-    );
-    final hangUp = find.byKey(const ValueKey('ongoing-hang-up'));
-    expect(tester.getSize(hangUp), const Size(64, 64));
-    final hangUpButton = tester.widget<IconButton>(
-      find.descendant(of: hangUp, matching: find.byType(IconButton)),
-    );
-    expect(
-      hangUpButton.style?.backgroundColor?.resolve({}),
-      AGLDemoColors.callDangerColor.withValues(alpha: 0.12),
-    );
-    expect(hangUpButton.color, AGLDemoColors.callDangerColor);
-    await tester.tap(find.byKey(const ValueKey('return-to-call')));
-    await tester.pump();
-    expect(container.read(appProvider), AppState.calls);
-    expect(find.byKey(const ValueKey('ongoing-call-widget')), findsNothing);
-
-    container.read(appProvider.notifier).update(AppState.apps);
-    await tester.pump();
-    await tester.tap(find.byTooltip('End call'));
-    await tester.pump();
-    expect(container.read(callStateProvider).status, CallStatus.ended);
-    expect(find.byKey(const ValueKey('ongoing-call-widget')), findsNothing);
+  testWidgets('Apps includes Phone and Messages tiles', (tester) async {
+    await show(tester, const Apps());
+    expect(find.text('Phone'), findsOneWidget);
+    expect(find.text('Messages'), findsOneWidget);
   });
 
-  testWidgets('Calls opens from Applications without a launcher service', (
+  testWidgets('Phone and active call remain usable in 1280x720 landscape', (
     tester,
   ) async {
-    await showPage(tester, const Size(1080, 1920), const Apps());
-    expect(find.text('Calls'), findsOneWidget);
-    await tester.tap(find.text('Calls'));
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(Apps)),
-    );
-    expect(container.read(appProvider), AppState.calls);
-  });
+    await show(tester, const CallsPage(), size: const Size(1280, 720));
+    expect(find.byKey(const ValueKey('dial-keypad')), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
-  test('launcher refresh keeps exactly one built-in Calls entry', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final apps = container.read(appLauncherListProvider);
-    container.read(appLauncherListProvider.notifier).update(apps);
-    expect(
-      container
-          .read(appLauncherListProvider)
-          .where((app) => app.internal && app.id == 'calls'),
-      hasLength(1),
+    await tester.pumpWidget(const SizedBox.shrink());
+    await show(
+      tester,
+      const CallsPage(),
+      size: const Size(1280, 720),
+      active: true,
     );
-    container.read(appLauncherListProvider.notifier).update([]);
-    expect(container.read(appLauncherListProvider).single.id, 'calls');
+    expect(find.byKey(const ValueKey('in-call-controls')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

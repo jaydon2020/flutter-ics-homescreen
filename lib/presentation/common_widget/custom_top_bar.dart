@@ -15,18 +15,24 @@ class CustomTopBar extends ConsumerStatefulWidget
 class CustomTopBarState extends ConsumerState<CustomTopBar> {
   @override
   Widget build(BuildContext context) {
-    final callStatus =
-        ref.watch(callStateProvider.select((call) => call.status));
+    final callStatus = ref.watch(
+      callStateProvider.select((call) => call.status),
+    );
     final appState = ref.watch(appProvider);
-    final hasCallOverlay = callStatus == CallStatus.incoming ||
+    final hasCallOverlay =
+        callStatus == CallStatus.incoming ||
         (appState != AppState.calls &&
+            appState != AppState.phone &&
+            appState != AppState.messages &&
             (callStatus == CallStatus.dialing ||
                 callStatus == CallStatus.active ||
                 callStatus == CallStatus.held));
-    final singnalsConnection =
-        ref.watch(signalsProvider.select((sinals) => sinals));
-    final userName =
-        ref.watch(usersProvider.select((user) => user.selectedUser.name));
+    final singnalsConnection = ref.watch(
+      signalsProvider.select((sinals) => sinals),
+    );
+    final userName = ref.watch(
+      usersProvider.select((user) => user.selectedUser.name),
+    );
     DateFormat dateFormat = DateFormat('hh:mm a');
     final currentime = ref.watch(currentTimeProvider);
 
@@ -45,9 +51,7 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
                       text: dateFormat.format(currentime),
                       style: const TextStyle(color: Colors.white, fontSize: 26),
                       children: <InlineSpan>[
-                        const WidgetSpan(
-                          child: SizedBox(width: 16),
-                        ),
+                        const WidgetSpan(child: SizedBox(width: 16)),
                         TextSpan(
                           text: userName,
                           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -79,16 +83,9 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
                         : Icons.bluetooth_disabled,
                     size: 24,
                   ),
-                  const SizedBox(
-                    width: 24,
-                  ),
-                  const Icon(
-                    Icons.signal_cellular_4_bar_outlined,
-                    size: 24,
-                  ),
-                  const SizedBox(
-                    width: 24,
-                  ),
+                  const SizedBox(width: 24),
+                  const Icon(Icons.signal_cellular_4_bar_outlined, size: 24),
+                  const SizedBox(width: 24),
                   Icon(
                     singnalsConnection.isWifiConnected
                         ? Icons.wifi

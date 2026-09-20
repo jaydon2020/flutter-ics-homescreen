@@ -15,8 +15,10 @@ class _AppsState extends ConsumerState<Apps> {
         context.flow<AppState>().update((next) => AppState.weather);
       } else if (id == "clock") {
         context.flow<AppState>().update((next) => AppState.clock);
-      } else if (id == 'calls') {
-        ref.read(appProvider.notifier).update(AppState.calls);
+      } else if (id == 'calls' || id == 'phone') {
+        ref.read(appProvider.notifier).update(AppState.phone);
+      } else if (id == 'messages') {
+        ref.read(appProvider.notifier).update(AppState.messages);
       }
     } else {
       ref.read(appLauncherProvider).startApp(id);
@@ -37,19 +39,29 @@ class _AppsState extends ConsumerState<Apps> {
             scrollDirection: Axis.vertical,
             shrinkWrap: true,
             itemCount: apps.length,
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 300),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 300,
+            ),
             itemBuilder: (context, index) {
               return GridTile(
-                  child: Container(
-                      alignment: Alignment.center,
-                      child: AppButton(
-                        title: apps[index].name,
-                        image: apps[index].icon.isNotEmpty ? apps[index].icon : "app-generic.svg",
-                        onPressed: () {
-                          onPressed(internal: apps[index].internal, id: apps[index].id);
-                        },
-                      )));
-            })
+                child: Container(
+                  alignment: Alignment.center,
+                  child: AppButton(
+                    title: apps[index].name,
+                    image: apps[index].icon.isNotEmpty
+                        ? apps[index].icon
+                        : "app-generic.svg",
+                    onPressed: () {
+                      onPressed(
+                        internal: apps[index].internal,
+                        id: apps[index].id,
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
         ),
         // Center(
         //   child: SizedBox(

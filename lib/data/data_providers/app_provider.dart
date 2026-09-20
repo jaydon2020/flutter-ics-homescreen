@@ -12,7 +12,8 @@ import 'package:flutter_ics_homescreen/data/data_providers/playlist_notifier.dar
 import 'package:flutter_ics_homescreen/data/data_providers/playlist_art_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/val_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/app_launcher.dart';
-import 'package:flutter_ics_homescreen/data/data_providers/radio_client.dart' as radioApi;
+import 'package:flutter_ics_homescreen/data/data_providers/radio_client.dart'
+    as radioApi;
 import 'package:flutter_ics_homescreen/data/data_providers/storage_client.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/storage_client_notifier.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/mpd_client.dart';
@@ -30,6 +31,9 @@ enum AppState {
   dashboard,
   hvac,
   apps,
+  phone,
+  messages,
+  // Temporary compatibility route for older callers.
   calls,
   media,
   settings,
@@ -78,15 +82,16 @@ class AppStateNotifier extends Notifier<AppState> {
   }
 }
 
-final appProvider =
-    NotifierProvider<AppStateNotifier, AppState>(AppStateNotifier.new);
+final appProvider = NotifierProvider<AppStateNotifier, AppState>(
+  AppStateNotifier.new,
+);
 
 final valClientProvider = Provider((ref) {
   KuksaConfig config = ref.watch(appConfigProvider).kuksaConfig;
   return ValClient(config: config, ref: ref);
 });
 
-final voiceAgentClientProvider = Provider((ref){
+final voiceAgentClientProvider = Provider((ref) {
   VoiceAgentConfig config = ref.watch(appConfigProvider).voiceAgentConfig;
   return VoiceAgentClient(config: config, ref: ref);
 });
@@ -97,13 +102,13 @@ final appLauncherProvider = Provider((ref) {
 
 final appLauncherListProvider =
     NotifierProvider<AppLauncherList, List<AppLauncherInfo>>(
-        AppLauncherList.new);
+      AppLauncherList.new,
+    );
 
 final radioClientProvider = Provider((ref) {
   RadioConfig config = ref.watch(appConfigProvider).radioConfig;
   return radioApi.RadioClient(config: config, ref: ref);
 });
-
 
 final storageClientProvider = Provider((ref) {
   StorageConfig config = ref.watch(appConfigProvider).storageConfig;
@@ -111,50 +116,62 @@ final storageClientProvider = Provider((ref) {
 });
 
 final storageClientConnectedProvider =
-    NotifierProvider<StorageClientConnectedNotifier, bool>(StorageClientConnectedNotifier.new);
+    NotifierProvider<StorageClientConnectedNotifier, bool>(
+      StorageClientConnectedNotifier.new,
+    );
 
 final mpdClientProvider = Provider((ref) {
   MpdConfig config = ref.watch(appConfigProvider).mpdConfig;
   return MpdClient(config: config, ref: ref);
 });
 
-final vehicleProvider =
-    NotifierProvider<VehicleNotifier, Vehicle>(VehicleNotifier.new);
+final vehicleProvider = NotifierProvider<VehicleNotifier, Vehicle>(
+  VehicleNotifier.new,
+);
 
 final signalsProvider = StateNotifierProvider<SignalNotifier, Signals>((ref) {
   return SignalNotifier(const Signals.initial());
 });
 
-final unitStateProvider =
-    NotifierProvider<UnitsNotifier, Units>(UnitsNotifier.new);
+final unitStateProvider = NotifierProvider<UnitsNotifier, Units>(
+  UnitsNotifier.new,
+);
 
-final audioStateProvider =
-    NotifierProvider<AudioStateNotifier, AudioState>(AudioStateNotifier.new);
+final audioStateProvider = NotifierProvider<AudioStateNotifier, AudioState>(
+  AudioStateNotifier.new,
+);
 
-final radioStateProvider =
-    NotifierProvider<RadioStateNotifier, RadioState>(RadioStateNotifier.new);
+final radioStateProvider = NotifierProvider<RadioStateNotifier, RadioState>(
+  RadioStateNotifier.new,
+);
 
 final mediaPlayerStateProvider =
     NotifierProvider<MediaPlayerStateNotifier, MediaPlayerState>(
-        MediaPlayerStateNotifier.new);
+      MediaPlayerStateNotifier.new,
+    );
 
 final mediaPlayerPositionProvider =
     NotifierProvider<MediaPlayerPositionNotifier, Duration>(
-        MediaPlayerPositionNotifier.new);
+      MediaPlayerPositionNotifier.new,
+    );
 
 final playlistProvider =
     NotifierProvider<PlaylistNotifier, List<PlaylistEntry>>(
-        PlaylistNotifier.new);
+      PlaylistNotifier.new,
+    );
 
 final playlistArtProvider =
     NotifierProvider<PlaylistArtNotifier, Map<int, Uint8List>>(
-        PlaylistArtNotifier.new);
+      PlaylistArtNotifier.new,
+    );
 
 final playStateProvider = StateProvider<bool>((ref) {
   final mediaPlayState = ref.watch(
-      mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.playState));
-  final radioPlaying =
-      ref.watch(radioStateProvider.select((radio) => radio.playing));
+    mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.playState),
+  );
+  final radioPlaying = ref.watch(
+    radioStateProvider.select((radio) => radio.playing),
+  );
   return (mediaPlayState == PlayState.playing || radioPlaying);
 });
 
@@ -162,19 +179,20 @@ final playControllerProvider = Provider((ref) {
   return PlayController(ref: ref);
 });
 
-final usersProvider =
-    NotifierProvider<UsersNotifier, Users>(UsersNotifier.new);
+final usersProvider = NotifierProvider<UsersNotifier, Users>(UsersNotifier.new);
 
-final hybridStateProvider =
-    StateNotifierProvider<HybridNotifier, Hybrid>((ref) {
+final hybridStateProvider = StateNotifierProvider<HybridNotifier, Hybrid>((
+  ref,
+) {
   return HybridNotifier(const Hybrid.initial());
 });
 
 final currentTimeProvider =
     StateNotifierProvider<CurrentTimeNotifier, DateTime>((ref) {
-  return CurrentTimeNotifier();
-});
-
+      return CurrentTimeNotifier();
+    });
 
 final voiceAssistantStateProvider =
-    NotifierProvider<VoiceAssistantStateNotifier, VoiceAssistantState>(VoiceAssistantStateNotifier.new);
+    NotifierProvider<VoiceAssistantStateNotifier, VoiceAssistantState>(
+      VoiceAssistantStateNotifier.new,
+    );

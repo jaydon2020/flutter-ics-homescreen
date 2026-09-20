@@ -133,6 +133,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
         _publishDevices();
       }
     });
+    Future.microtask(connect);
     return const BluetoothState();
   }
 
@@ -338,7 +339,9 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   }
 
   Future<void> _enforceInitialConnectionPolicy() async {
-    final connected = _devices.values.where((d) => d.connected).toList();
+    final connected = _devices.values
+        .where((d) => d.connected && bluetoothDeviceIsSupported(d))
+        .toList();
     try {
       if (connected.isEmpty) {
         await _unblockAllDevices();
@@ -359,7 +362,9 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   Future<void> _rejectExternalConnection(BlueZDevice device) async {
     try {
       await _disconnectDevice(device);
-      final connected = _devices.values.where((d) => d.connected).firstOrNull;
+      final connected = _devices.values
+          .where((d) => d.connected && bluetoothDeviceIsSupported(d))
+          .firstOrNull;
       if (connected == null) {
         await _unblockAllDevices();
       } else {
@@ -596,7 +601,9 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       if (device.connected) await _disconnectDevice(device);
       await _adapter?.removeDevice(device.objectPath);
       _devices.remove(device.address);
-      final connected = _devices.values.where((d) => d.connected).firstOrNull;
+      final connected = _devices.values
+          .where((d) => d.connected && bluetoothDeviceIsSupported(d))
+          .firstOrNull;
       if (connected == null) {
         await _unblockAllDevices();
       } else {
@@ -661,7 +668,9 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   }
 
   Future<void> _applyDeviceBlocks(BlueZDevice connected) async {
-    for (final device in _devices.values.where((device) => device.paired)) {
+    for (final device in _devices.values.where(
+      (device) => device.paired && bluetoothDeviceIsSupported(device),
+    )) {
       await _setDeviceBlocked(device, device.address != connected.address);
     }
   }
@@ -738,7 +747,9 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
 
   BlueZDevice? _connectedDeviceExcept(BlueZDevice? device) {
     for (final candidate in _devices.values) {
-      if (candidate.connected && candidate.address != device?.address) {
+      if (candidate.connected &&
+          bluetoothDeviceIsSupported(candidate) &&
+          candidate.address != device?.address) {
         return candidate;
       }
     }
@@ -755,7 +766,6 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   void _publishDevices() {
     if (_disposed) return;
     _publishConnectionSignal();
-    if (!_isOnBluetoothPage) return;
 
     // Some smartphones do not advertise their media UUIDs before pairing.
     // Keep unrelated devices out of the UI using profiles or device class.

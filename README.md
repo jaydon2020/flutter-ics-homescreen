@@ -25,3 +25,8 @@ Use them like this:
 ```
 flutter run --dart-define=DEBUG_DISPLAY=true,DISABLE_BKG_ANIMATION=true
 ```
+
+## Phone, contacts, and messages
+
+See [Native phone integration](docs/native_phone_integration.md) for PBAP, MAP,
+PipeWire Telephony, host bootstrap, and AGL cross-build requirements.

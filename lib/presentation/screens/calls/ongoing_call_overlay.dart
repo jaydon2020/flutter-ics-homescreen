@@ -6,7 +6,8 @@ class OngoingCallOverlay extends ConsumerWidget {
 
   String _formatDuration(Duration duration) {
     String digits(int value) => value.toString().padLeft(2, '0');
-    final time = '${digits(duration.inMinutes.remainder(60))}:'
+    final time =
+        '${digits(duration.inMinutes.remainder(60))}:'
         '${digits(duration.inSeconds.remainder(60))}';
     return duration.inHours == 0 ? time : '${digits(duration.inHours)}:$time';
   }
@@ -15,7 +16,9 @@ class OngoingCallOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final call = ref.watch(callStateProvider);
     final app = ref.watch(appProvider);
-    final visible = app != AppState.calls &&
+    final visible =
+        app != AppState.calls &&
+        app != AppState.phone &&
         (call.status == CallStatus.dialing ||
             call.status == CallStatus.active ||
             call.status == CallStatus.held);
@@ -26,8 +29,8 @@ class OngoingCallOverlay extends ConsumerWidget {
     final status = call.status == CallStatus.dialing
         ? 'Calling'
         : held
-            ? 'On hold'
-            : _formatDuration(call.duration);
+        ? 'On hold'
+        : _formatDuration(call.duration);
     final accent = held ? AGLDemoColors.yellowColor : AGLDemoColors.greenColor;
 
     return Positioned(
@@ -40,10 +43,7 @@ class OngoingCallOverlay extends ConsumerWidget {
           child: Container(
             key: const ValueKey('ongoing-call-widget'),
             height: 132,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 22,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
             decoration: BoxDecoration(
               gradient: AGLDemoColors.callNotificationGradient,
               borderRadius: BorderRadius.circular(40),
@@ -65,7 +65,7 @@ class OngoingCallOverlay extends ConsumerWidget {
                       key: const ValueKey('return-to-call'),
                       borderRadius: BorderRadius.circular(20),
                       onTap: () =>
-                          ref.read(appProvider.notifier).update(AppState.calls),
+                          ref.read(appProvider.notifier).update(AppState.phone),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Row(
@@ -147,8 +147,9 @@ class OngoingCallOverlay extends ConsumerWidget {
                 const SizedBox(width: 8),
                 _QuickAction(
                   label: call.isMuted ? 'Unmute' : 'Mute',
-                  icon:
-                      call.isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  icon: call.isMuted
+                      ? Icons.mic_off_rounded
+                      : Icons.mic_rounded,
                   selected: call.isMuted,
                   onPressed: call.status == CallStatus.dialing
                       ? null
@@ -189,7 +190,8 @@ class _QuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = color ??
+    final foreground =
+        color ??
         (selected ? AGLDemoColors.yellowColor : AGLDemoColors.periwinkleColor);
     return Tooltip(
       message: label,
@@ -200,15 +202,12 @@ class _QuickAction extends StatelessWidget {
           color: foreground,
           disabledColor: foreground.withValues(alpha: 0.3),
           style: IconButton.styleFrom(
-            backgroundColor: color?.withValues(alpha: 0.12) ??
+            backgroundColor:
+                color?.withValues(alpha: 0.12) ??
                 foreground.withValues(alpha: selected ? 0.18 : 0.08),
             shape: const CircleBorder(),
           ),
-          icon: Icon(
-            icon,
-            size: color == null ? 24 : 30,
-            color: foreground,
-          ),
+          icon: Icon(icon, size: color == null ? 24 : 30, color: foreground),
         ),
       ),
     );

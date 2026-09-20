@@ -52,31 +52,34 @@ class PhoneKeypad extends StatelessWidget {
             hint: digit == '0' && onZeroLongPress != null
                 ? 'Hold to enter plus'
                 : letters.isEmpty
-                    ? null
-                    : letters,
+                ? null
+                : letters,
             excludeSemantics: true,
             child: LayoutBuilder(
               builder: (context, constraints) => Center(
                 child: SizedBox(
-                  width: constraints.constrainWidth(164),
+                  width: constraints.maxWidth,
                   height: constraints.constrainHeight(88),
                   child: Material(
                     color: AGLDemoColors.callControlColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
                       side: BorderSide(
-                        color: AGLDemoColors.jordyBlueColor
-                            .withValues(alpha: 0.28),
+                        color: AGLDemoColors.jordyBlueColor.withValues(
+                          alpha: 0.28,
+                        ),
                       ),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       key: ValueKey('$keyPrefix-$digit'),
                       borderRadius: BorderRadius.circular(24),
-                      splashColor:
-                          AGLDemoColors.neonBlueColor.withValues(alpha: 0.28),
-                      highlightColor:
-                          AGLDemoColors.jordyBlueColor.withValues(alpha: 0.14),
+                      splashColor: AGLDemoColors.neonBlueColor.withValues(
+                        alpha: 0.28,
+                      ),
+                      highlightColor: AGLDemoColors.jordyBlueColor.withValues(
+                        alpha: 0.14,
+                      ),
                       onTap: () => onKeyPressed(digit),
                       onLongPress: digit == '0' ? onZeroLongPress : null,
                       child: Center(

@@ -1,9 +1,10 @@
 import 'package:flutter_ics_homescreen/export.dart';
+import 'package:intl/intl.dart';
 
-/// Bluetooth phone dialer.
+enum _PhoneSection { recents, contacts, dial }
+
 class CallsPage extends ConsumerStatefulWidget {
   const CallsPage({super.key});
-
   static Page<void> page() => const MaterialPage<void>(child: CallsPage());
 
   @override
@@ -11,94 +12,392 @@ class CallsPage extends ConsumerStatefulWidget {
 }
 
 class _CallsPageState extends ConsumerState<CallsPage> {
-  static const _suggestions = [
-    ('Aisha Rahman', '+60 12-345 6789', 'assets/contact_aisha_rahman.png'),
-    ('Daniel Tan', '+60 17-654 3210', 'assets/contact_daniel_tan.png'),
-  ];
-
+  _PhoneSection _section = _PhoneSection.dial;
   String _number = '';
-
-  void _append(String digit) {
-    if (_number.length < 32) setState(() => _number += digit);
-  }
-
-  void _delete() {
-    if (_number.isNotEmpty) {
-      setState(() => _number = _number.substring(0, _number.length - 1));
-    }
-  }
+  String _query = '';
 
   @override
   Widget build(BuildContext context) {
     final call = ref.watch(callStateProvider);
-    final inCall = call.status == CallStatus.active ||
-        call.status == CallStatus.dialing ||
-        call.status == CallStatus.held;
-
+    if (call.hasCall) {
+      return Column(
+        children: [
+          CommonTitle(
+            title: 'Phone',
+            hasBackButton: true,
+            onPressed: () =>
+                ref.read(appProvider.notifier).update(AppState.apps),
+          ),
+          const Expanded(child: ActiveCallScreen()),
+        ],
+      );
+    }
+    final phone = ref.watch(phoneDataProvider);
     return Column(
       children: [
         CommonTitle(
-          title: 'Calls',
+          title: 'Phone',
           hasBackButton: true,
           onPressed: () => ref.read(appProvider.notifier).update(AppState.apps),
         ),
         Expanded(
-          child: inCall
-              ? const ActiveCallScreen()
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final wide = constraints.maxWidth >= 900 &&
-                        constraints.maxWidth > constraints.maxHeight;
-                    final leftPadding =
-                        constraints.maxWidth >= 700 ? 120.0 : 28.0;
-                    return SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(
-                        leftPadding,
-                        20,
-                        wide ? 72 : 28,
-                        160,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final landscape = constraints.maxWidth > constraints.maxHeight;
+              return Padding(
+                padding: EdgeInsets.fromLTRB(
+                  constraints.maxWidth >= 700 ? 120 : 24,
+                  20,
+                  28,
+                  120,
+                ),
+                child: Column(
+                  children: [
+                    _PhoneStatus(call: call, phone: phone),
+                    const SizedBox(height: 16),
+                    _SectionSelector(
+                      selected: _section,
+                      onChanged: (section) =>
+                          setState(() => _section = section),
+                    ),
+                    if (call.error != null || phone.error != null) ...[
+                      const SizedBox(height: 12),
+                      _InlineError(
+                        message: call.error ?? phone.error!,
+                        onRetry: () {
+                          ref.read(callStateProvider.notifier).retry();
+                          ref.read(phoneDataProvider.notifier).retry();
+                        },
                       ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: 980,
-                            minHeight: constraints.maxHeight > 180
-                                ? constraints.maxHeight - 180
-                                : 0,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                children: [
-                                  _buildPhoneHeader(),
-                                  const SizedBox(height: 24),
-                                  _buildSuggestedContacts(),
-                                ],
-                              ),
-                              if (wide)
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Expanded(
-                                      flex: 4,
-                                      child: _buildDialHeader(),
-                                    ),
-                                    const SizedBox(width: 48),
-                                    Expanded(
-                                      flex: 6,
-                                      child: _buildDialControls(),
-                                    ),
-                                  ],
-                                )
-                              else
-                                _buildDialControls(
-                                  header: _buildDialHeader(),
-                                ),
-                            ],
-                          ),
+                    ],
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: switch (_section) {
+                        _PhoneSection.recents => _RecentsView(
+                          items: phone.recents,
                         ),
-                      ),
+                        _PhoneSection.contacts => _ContactsView(
+                          contacts: phone.contacts,
+                          query: _query,
+                          onQueryChanged: (value) =>
+                              setState(() => _query = value),
+                        ),
+                        _PhoneSection.dial => _DialView(
+                          number: _number,
+                          landscape: landscape,
+                          enabled: call.connected,
+                          onDigit: (digit) {
+                            if (_number.length < 32) {
+                              setState(() => _number += digit);
+                            }
+                          },
+                          onClear: () => setState(() => _number = ''),
+                          onDelete: () {
+                            if (_number.isNotEmpty) {
+                              setState(
+                                () => _number = _number.substring(
+                                  0,
+                                  _number.length - 1,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhoneStatus extends StatelessWidget {
+  const _PhoneStatus({required this.call, required this.phone});
+  final CallState call;
+  final PhoneDataState phone;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = call.connected;
+    return SizedBox(
+      height: 72,
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AGLDemoColors.callControlColor,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.phone_rounded,
+              color: AGLDemoColors.jordyBlueColor,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Phone',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  phone.deviceName ?? 'No phone connected',
+                  style: const TextStyle(
+                    color: AGLDemoColors.periwinkleColor,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color:
+                  (ready
+                          ? AGLDemoColors.greenColor
+                          : AGLDemoColors.periwinkleColor)
+                      .withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  ready
+                      ? Icons.bluetooth_connected_rounded
+                      : Icons.bluetooth_disabled_rounded,
+                  size: 19,
+                  color: ready
+                      ? AGLDemoColors.greenColor
+                      : AGLDemoColors.periwinkleColor,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  ready ? 'Ready' : 'Disconnected',
+                  style: TextStyle(
+                    color: ready
+                        ? AGLDemoColors.greenColor
+                        : AGLDemoColors.periwinkleColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionSelector extends StatelessWidget {
+  const _SectionSelector({required this.selected, required this.onChanged});
+  final _PhoneSection selected;
+  final ValueChanged<_PhoneSection> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 64,
+    decoration: BoxDecoration(
+      color: AGLDemoColors.backgroundInsetColor.withValues(alpha: .9),
+      borderRadius: BorderRadius.circular(28),
+    ),
+    padding: const EdgeInsets.all(6),
+    child: Row(
+      children: [
+        for (final section in _PhoneSection.values)
+          Expanded(
+            child: Semantics(
+              button: true,
+              selected: section == selected,
+              child: InkWell(
+                key: ValueKey('phone-tab-${section.name}'),
+                borderRadius: BorderRadius.circular(22),
+                onTap: () => onChanged(section),
+                child: AnimatedContainer(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 160),
+                  decoration: BoxDecoration(
+                    color: section == selected
+                        ? AGLDemoColors.buttonFillEnabledColor
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    section.name[0].toUpperCase() + section.name.substring(1),
+                    style: TextStyle(
+                      color: section == selected
+                          ? Colors.white
+                          : AGLDemoColors.periwinkleColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+class _RecentsView extends ConsumerWidget {
+  const _RecentsView({required this.items});
+  final List<RecentCall> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (items.isEmpty) {
+      return const _EmptyState(
+        icon: Icons.history_rounded,
+        title: 'No recent calls',
+        subtitle: 'Call history will sync from the connected phone.',
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: ref.read(phoneDataProvider.notifier).refreshRecents,
+      child: ListView.separated(
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final missed = item.type == RecentCallType.missed;
+          final icon = switch (item.type) {
+            RecentCallType.outgoing => Icons.call_made_rounded,
+            RecentCallType.missed => Icons.call_missed_rounded,
+            _ => Icons.call_received_rounded,
+          };
+          return _PhoneRow(
+            leading: _InitialAvatar(name: item.name),
+            title: item.name,
+            subtitle: item.number,
+            meta: DateFormat('MMM d  •  h:mm a').format(item.timestamp),
+            statusIcon: icon,
+            statusColor: missed
+                ? AGLDemoColors.callDangerColor
+                : AGLDemoColors.jordyBlueColor,
+            primaryIcon: Icons.call_rounded,
+            onPrimary: () => ref
+                .read(callStateProvider.notifier)
+                .startCall(item.number, name: item.name),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ContactsView extends ConsumerWidget {
+  const _ContactsView({
+    required this.contacts,
+    required this.query,
+    required this.onQueryChanged,
+  });
+  final List<PhoneContact> contacts;
+  final String query;
+  final ValueChanged<String> onQueryChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final normalized = query.toLowerCase();
+    final filtered = contacts
+        .where(
+          (contact) =>
+              contact.name.toLowerCase().contains(normalized) ||
+              contact.numbers.any((number) => number.contains(query)),
+        )
+        .toList();
+    return Column(
+      children: [
+        TextField(
+          onChanged: onQueryChanged,
+          style: const TextStyle(color: Colors.white, fontSize: 18),
+          decoration: InputDecoration(
+            hintText: 'Search contacts',
+            hintStyle: const TextStyle(color: AGLDemoColors.periwinkleColor),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              color: AGLDemoColors.jordyBlueColor,
+            ),
+            filled: true,
+            fillColor: AGLDemoColors.callSurfaceColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: filtered.isEmpty
+              ? const _EmptyState(
+                  icon: Icons.contacts_rounded,
+                  title: 'No contacts found',
+                  subtitle: 'Connect a phone with contact sharing enabled.',
+                )
+              : ListView.separated(
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final contact = filtered[index];
+                    final letter = contact.name.isEmpty
+                        ? '#'
+                        : contact.name[0].toUpperCase();
+                    final previousLetter = index == 0
+                        ? null
+                        : filtered[index - 1].name.isEmpty
+                        ? '#'
+                        : filtered[index - 1].name[0].toUpperCase();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (letter != previousLetter)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                            child: Text(
+                              letter,
+                              style: const TextStyle(
+                                color: AGLDemoColors.jordyBlueColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        _PhoneRow(
+                          leading: _ContactAvatar(contact: contact),
+                          title: contact.name,
+                          subtitle: contact.primaryNumber,
+                          primaryIcon: Icons.call_rounded,
+                          onPrimary: () => _callContact(context, ref, contact),
+                          secondaryIcon: Icons.message_rounded,
+                          onSecondary: () {
+                            ref
+                                .read(phoneDataProvider.notifier)
+                                .composeTo(contact.primaryNumber);
+                            ref
+                                .read(appProvider.notifier)
+                                .update(AppState.messages);
+                          },
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -107,310 +406,381 @@ class _CallsPageState extends ConsumerState<CallsPage> {
     );
   }
 
-  Widget _buildPhoneHeader() {
-    return Row(
-      key: const ValueKey('phone-status'),
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: AGLDemoColors.jordyBlueColor.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(
-            Icons.phone_in_talk_rounded,
-            color: AGLDemoColors.jordyBlueColor,
-          ),
-        ),
-        const SizedBox(width: 14),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Phone',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                ),
+  Future<void> _callContact(
+    BuildContext context,
+    WidgetRef ref,
+    PhoneContact contact,
+  ) async {
+    if (contact.numbers.length == 1) {
+      await ref
+          .read(callStateProvider.notifier)
+          .startCall(contact.primaryNumber, name: contact.name);
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        backgroundColor: AGLDemoColors.callSurfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text('Call ${contact.name}'),
+        children: [
+          for (final number in contact.numbers)
+            SimpleDialogOption(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              onPressed: () {
+                Navigator.pop(context);
+                ref
+                    .read(callStateProvider.notifier)
+                    .startCall(number, name: contact.name);
+              },
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.call_rounded,
+                    color: AGLDemoColors.greenColor,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(number, style: const TextStyle(fontSize: 18)),
+                ],
               ),
-              Text(
-                'Ready to call',
-                style: TextStyle(
-                  color: AGLDemoColors.periwinkleColor,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-        _buildIncomingPreview(),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: AGLDemoColors.greenColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.bluetooth_rounded,
-                size: 17,
-                color: AGLDemoColors.greenColor,
-              ),
-              SizedBox(width: 7),
-              Text(
-                'Connected',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AGLDemoColors.greenColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildDialHeader() {
-    return SizedBox(
-      height: 56,
-      width: double.infinity,
-      child: Semantics(
-        label: 'Phone number',
-        value: _number.isEmpty ? 'Empty' : _number,
-        excludeSemantics: true,
-        child: _number.isEmpty
-            ? const SizedBox.shrink()
+class _DialView extends ConsumerWidget {
+  const _DialView({
+    required this.number,
+    required this.landscape,
+    required this.enabled,
+    required this.onDigit,
+    required this.onClear,
+    required this.onDelete,
+  });
+  final String number;
+  final bool landscape;
+  final bool enabled;
+  final ValueChanged<String> onDigit;
+  final VoidCallback onClear;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final numberArea = SizedBox(
+      height: 64,
+      child: Center(
+        child: number.isEmpty
+            ? const Text(
+                'Enter a number',
+                style: TextStyle(
+                  color: AGLDemoColors.periwinkleColor,
+                  fontSize: 18,
+                ),
+              )
             : FittedBox(
-                fit: BoxFit.scaleDown,
                 child: Text(
-                  _number,
+                  number,
                   key: const ValueKey('dialed-number'),
                   style: const TextStyle(
-                    fontSize: 44,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 1.4,
                     color: Colors.white,
+                    fontSize: 40,
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
       ),
     );
-  }
-
-  Widget _buildDialControls({Widget? header}) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (header != null) ...[
-          header,
-          const SizedBox(height: 20),
-        ],
-        _buildKeypad(),
-        const SizedBox(height: 24),
-        _buildDialActions(),
-      ],
-    );
-  }
-
-  Widget _buildSuggestedContacts() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Suggested contacts',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AGLDemoColors.periwinkleColor.withValues(alpha: 0.82),
-          ),
-        ),
-        const SizedBox(height: 12),
-        for (var index = 0; index < _suggestions.length; index++) ...[
-          if (index > 0) const SizedBox(height: 10),
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
-            clipBehavior: Clip.antiAlias,
-            child: Ink(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  stops: [0.1, 1],
-                  colors: [Colors.black, Colors.black12],
-                ),
-              ),
-              child: InkWell(
-                key: ValueKey('suggested-contact-$index'),
-                borderRadius: BorderRadius.circular(18),
-                onTap: () => ref.read(callStateProvider.notifier).startCall(
-                      _suggestions[index].$2,
-                      name: _suggestions[index].$1,
-                    ),
-                child: SizedBox(
-                  height: 130,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AGLDemoColors.jordyBlueColor
-                                .withValues(alpha: 0.18),
-                            image: DecorationImage(
-                              image: AssetImage(_suggestions[index].$3),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _suggestions[index].$1,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _suggestions[index].$2,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AGLDemoColors.periwinkleColor
-                                      .withValues(alpha: 0.65),
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.call_outlined,
-                          size: 30,
-                          color: AGLDemoColors.greenColor,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildDialActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: Center(
-            child: TextButton(
-              onPressed:
-                  _number.isEmpty ? null : () => setState(() => _number = ''),
-              style: TextButton.styleFrom(
-                foregroundColor: AGLDemoColors.periwinkleColor,
-                disabledForegroundColor:
-                    AGLDemoColors.periwinkleColor.withValues(alpha: 0.42),
-                minimumSize: const Size(88, 56),
-                textStyle: const TextStyle(fontSize: 17),
-              ),
-              child: const Text('Clear'),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Center(
-            child: Semantics(
-              label: 'Call',
-              button: true,
-              child: SizedBox.square(
-                dimension: 76,
-                child: ElevatedButton(
-                  onPressed: _number.isEmpty
-                      ? null
-                      : () => ref
-                          .read(callStateProvider.notifier)
-                          .startCall(_number),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AGLDemoColors.greenColor,
-                    disabledBackgroundColor:
-                        AGLDemoColors.greenColor.withValues(alpha: 0.24),
-                    foregroundColor: AGLDemoColors.backgroundInsetColor,
-                    disabledForegroundColor:
-                        AGLDemoColors.periwinkleColor.withValues(alpha: 0.42),
-                    shape: const CircleBorder(),
-                    padding: EdgeInsets.zero,
-                    elevation: _number.isEmpty ? 0 : 3,
-                  ),
-                  child: const Icon(Icons.call_rounded, size: 34),
-                ),
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Center(
-            child: IconButton(
-              tooltip: 'Delete last digit',
-              iconSize: 28,
-              padding: const EdgeInsets.all(14),
-              color: AGLDemoColors.periwinkleColor,
-              disabledColor:
-                  AGLDemoColors.periwinkleColor.withValues(alpha: 0.42),
-              onPressed: _number.isEmpty ? null : _delete,
-              icon: const Icon(Icons.backspace_outlined),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildIncomingPreview() {
-    return IconButton(
-      tooltip: 'Preview incoming call',
-      onPressed: () => ref
-          .read(callStateProvider.notifier)
-          .receiveIncomingCall('Jane Doe', '+1 (555) 234-5678'),
-      style: IconButton.styleFrom(
-        foregroundColor: AGLDemoColors.periwinkleColor,
-        backgroundColor: AGLDemoColors.callControlColor,
-        minimumSize: const Size.square(48),
-      ),
-      icon: const Icon(Icons.notifications_none_rounded, size: 22),
-    );
-  }
-
-  Widget _buildKeypad() {
-    return PhoneKeypad(
+    final keypad = PhoneKeypad(
       key: const ValueKey('dial-keypad'),
       keyPrefix: 'dial-key',
-      onKeyPressed: _append,
-      onZeroLongPress: () => _append('+'),
+      onKeyPressed: onDigit,
+      onZeroLongPress: () => onDigit('+'),
+    );
+    final actions = Row(
+      children: [
+        Expanded(
+          child: TextButton(
+            onPressed: number.isEmpty ? null : onClear,
+            child: const Text('Clear', style: TextStyle(fontSize: 17)),
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: SizedBox.square(
+              dimension: 76,
+              child: ElevatedButton(
+                onPressed: !enabled || number.isEmpty
+                    ? null
+                    : () => ref
+                          .read(callStateProvider.notifier)
+                          .startCall(number),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AGLDemoColors.greenColor,
+                  disabledBackgroundColor: AGLDemoColors.callControlColor,
+                  foregroundColor: AGLDemoColors.backgroundInsetColor,
+                  shape: const CircleBorder(),
+                ),
+                child: const Icon(Icons.call_rounded, size: 34),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: IconButton(
+            tooltip: 'Delete last digit',
+            onPressed: number.isEmpty ? null : onDelete,
+            icon: const Icon(Icons.backspace_outlined),
+            color: AGLDemoColors.periwinkleColor,
+            iconSize: 30,
+          ),
+        ),
+      ],
+    );
+    if (landscape) {
+      return Row(
+        children: [
+          Expanded(child: numberArea),
+          const SizedBox(width: 40),
+          Expanded(
+            flex: 2,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [keypad, const SizedBox(height: 16), actions],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          numberArea,
+          const SizedBox(height: 12),
+          keypad,
+          const SizedBox(height: 16),
+          actions,
+        ],
+      ),
     );
   }
+}
+
+class _PhoneRow extends StatelessWidget {
+  const _PhoneRow({
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    required this.primaryIcon,
+    required this.onPrimary,
+    this.meta,
+    this.statusIcon,
+    this.statusColor,
+    this.secondaryIcon,
+    this.onSecondary,
+  });
+  final Widget leading;
+  final String title;
+  final String subtitle;
+  final String? meta;
+  final IconData? statusIcon;
+  final Color? statusColor;
+  final IconData primaryIcon;
+  final VoidCallback onPrimary;
+  final IconData? secondaryIcon;
+  final VoidCallback? onSecondary;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 128,
+    padding: const EdgeInsets.symmetric(horizontal: 22),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xff050711), Color(0xff101638)],
+      ),
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: Row(
+      children: [
+        leading,
+        const SizedBox(width: 18),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  if (statusIcon != null) ...[
+                    Icon(statusIcon, size: 17, color: statusColor),
+                    const SizedBox(width: 7),
+                  ],
+                  Flexible(
+                    child: Text(
+                      subtitle,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AGLDemoColors.periwinkleColor,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (meta != null) ...[
+          Text(
+            meta!,
+            style: const TextStyle(
+              color: AGLDemoColors.periwinkleColor,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(width: 16),
+        ],
+        if (secondaryIcon != null) ...[
+          IconButton(
+            onPressed: onSecondary,
+            tooltip: 'Message',
+            icon: Icon(secondaryIcon),
+            color: AGLDemoColors.jordyBlueColor,
+            iconSize: 28,
+          ),
+          const SizedBox(width: 8),
+        ],
+        IconButton(
+          onPressed: onPrimary,
+          tooltip: 'Call',
+          icon: Icon(primaryIcon),
+          color: AGLDemoColors.greenColor,
+          iconSize: 30,
+        ),
+      ],
+    ),
+  );
+}
+
+class _ContactAvatar extends StatelessWidget {
+  const _ContactAvatar({required this.contact});
+  final PhoneContact contact;
+  @override
+  Widget build(BuildContext context) => CircleAvatar(
+    radius: 34,
+    backgroundColor: AGLDemoColors.callControlColor,
+    backgroundImage: contact.photo == null ? null : MemoryImage(contact.photo!),
+    child: contact.photo == null
+        ? Text(
+            contact.initials,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          )
+        : null,
+  );
+}
+
+class _InitialAvatar extends StatelessWidget {
+  const _InitialAvatar({required this.name});
+  final String name;
+  @override
+  Widget build(BuildContext context) => CircleAvatar(
+    radius: 34,
+    backgroundColor: AGLDemoColors.callControlColor,
+    child: Text(
+      name.isEmpty ? '?' : name[0].toUpperCase(),
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: AGLDemoColors.jordyBlueColor, size: 64),
+        const SizedBox(height: 16),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AGLDemoColors.periwinkleColor,
+            fontSize: 16,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 56),
+    padding: const EdgeInsets.only(left: 16),
+    decoration: BoxDecoration(
+      color: AGLDemoColors.callDangerColor.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.error_outline_rounded,
+          color: AGLDemoColors.callDangerColor,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            message,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+        TextButton(onPressed: onRetry, child: const Text('Retry')),
+      ],
+    ),
+  );
 }

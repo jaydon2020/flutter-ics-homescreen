@@ -13,7 +13,8 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
 
   String _formatDuration(Duration duration) {
     String digits(int value) => value.toString().padLeft(2, '0');
-    final time = '${digits(duration.inMinutes.remainder(60))}:'
+    final time =
+        '${digits(duration.inMinutes.remainder(60))}:'
         '${digits(duration.inSeconds.remainder(60))}';
     return duration.inHours == 0 ? time : '${digits(duration.inHours)}:$time';
   }
@@ -28,8 +29,9 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
       CallStatus.ended => 'Call ended',
       _ => 'Connected',
     };
-    final accent =
-        call.isHeld ? AGLDemoColors.yellowColor : AGLDemoColors.jordyBlueColor;
+    final accent = call.isHeld
+        ? AGLDemoColors.yellowColor
+        : AGLDemoColors.jordyBlueColor;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -84,8 +86,9 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 17,
-                        color: AGLDemoColors.periwinkleColor
-                            .withValues(alpha: 0.8),
+                        color: AGLDemoColors.periwinkleColor.withValues(
+                          alpha: 0.8,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -129,8 +132,9 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
               runSpacing: 16,
               children: [
                 _CallAction(
-                  icon:
-                      call.isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  icon: call.isMuted
+                      ? Icons.mic_off_rounded
+                      : Icons.mic_rounded,
                   label: call.isMuted ? 'Unmute' : 'Mute',
                   selected: call.isMuted,
                   selectedColor: AGLDemoColors.yellowColor,
@@ -143,16 +147,47 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
                   onPressed: () => setState(() => _showKeypad = !_showKeypad),
                 ),
                 _CallAction(
-                  icon: call.isHeld
+                  icon: call.participants.length > 1
+                      ? Icons.swap_calls_rounded
+                      : call.isHeld
                       ? Icons.play_arrow_rounded
                       : Icons.pause_rounded,
-                  label: call.isHeld ? 'Resume' : 'Hold',
+                  label: call.participants.length > 1
+                      ? 'Swap'
+                      : call.isHeld
+                      ? 'Resume'
+                      : 'Hold',
                   selected: call.isHeld,
                   selectedColor: AGLDemoColors.yellowColor,
                   onPressed: notifier.toggleHold,
                 ),
+                if (call.participants.length > 1)
+                  _CallAction(
+                    icon: Icons.call_merge_rounded,
+                    label: 'Merge',
+                    onPressed: notifier.createMultiparty,
+                  ),
               ],
             ),
+            if (call.error != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AGLDemoColors.callDangerColor.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  call.error!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             _CallAction(
               icon: Icons.call_end_rounded,
@@ -217,7 +252,10 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
         PhoneKeypad(
           key: const ValueKey('in-call-keypad'),
           keyPrefix: 'dtmf-key',
-          onKeyPressed: (digit) => setState(() => _dtmfDigits += digit),
+          onKeyPressed: (digit) {
+            setState(() => _dtmfDigits += digit);
+            ref.read(callStateProvider.notifier).sendTones(digit);
+          },
         ),
       ],
     );
@@ -258,15 +296,16 @@ class _CallAction extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onPressed,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: fillColor ??
+                  backgroundColor:
+                      fillColor ??
                       (selected
                           ? color.withValues(alpha: 0.24)
                           : AGLDemoColors.callControlColor),
                   foregroundColor: fillColor == null && !selected
                       ? Colors.white
                       : fillColor == null
-                          ? color
-                          : Colors.white,
+                      ? color
+                      : Colors.white,
                   elevation: fillColor == null ? 0 : 3,
                   padding: EdgeInsets.zero,
                   shape: const CircleBorder(),
@@ -274,8 +313,9 @@ class _CallAction extends StatelessWidget {
                       ? BorderSide(
                           color: selected
                               ? color
-                              : AGLDemoColors.jordyBlueColor
-                                  .withValues(alpha: 0.22),
+                              : AGLDemoColors.jordyBlueColor.withValues(
+                                  alpha: 0.22,
+                                ),
                         )
                       : BorderSide.none,
                 ),

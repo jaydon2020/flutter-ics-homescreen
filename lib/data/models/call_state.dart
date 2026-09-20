@@ -1,24 +1,25 @@
-import 'package:flutter_ics_homescreen/export.dart';
+import 'package:flutter/foundation.dart';
 
-enum CallStatus {
-  idle,
-  dialing,
-  incoming,
-  active,
-  held,
-  ended,
+enum CallStatus { idle, dialing, incoming, active, held, ended }
+
+@immutable
+class CallParticipant {
+  const CallParticipant({
+    required this.id,
+    required this.name,
+    required this.number,
+    required this.status,
+    this.multiparty = false,
+  });
+  final String id;
+  final String name;
+  final String number;
+  final CallStatus status;
+  final bool multiparty;
 }
 
 @immutable
 class CallState {
-  final CallStatus status;
-  final String name;
-  final String number;
-  final Duration duration;
-  final bool isMuted;
-  final bool isSpeaker;
-  final bool isHeld;
-
   const CallState({
     required this.status,
     required this.name,
@@ -27,16 +28,62 @@ class CallState {
     required this.isMuted,
     required this.isSpeaker,
     required this.isHeld,
+    this.connected = false,
+    this.busy = false,
+    this.deviceAddress,
+    this.gatewayAddress,
+    this.activeCallId,
+    this.speakerVolume,
+    this.microphoneVolume,
+    this.transportState,
+    this.codec,
+    this.rejectSco,
+    this.participants = const [],
+    this.error,
   });
 
   const CallState.initial()
-      : status = CallStatus.idle,
-        name = '',
-        number = '',
-        duration = Duration.zero,
-        isMuted = false,
-        isSpeaker = false,
-        isHeld = false;
+    : status = CallStatus.idle,
+      name = '',
+      number = '',
+      duration = Duration.zero,
+      isMuted = false,
+      isSpeaker = false,
+      isHeld = false,
+      connected = false,
+      busy = false,
+      deviceAddress = null,
+      gatewayAddress = null,
+      activeCallId = null,
+      speakerVolume = null,
+      microphoneVolume = null,
+      transportState = null,
+      codec = null,
+      rejectSco = null,
+      participants = const [],
+      error = null;
+
+  final CallStatus status;
+  final String name;
+  final String number;
+  final Duration duration;
+  final bool isMuted;
+  final bool isSpeaker;
+  final bool isHeld;
+  final bool connected;
+  final bool busy;
+  final String? deviceAddress;
+  final String? gatewayAddress;
+  final String? activeCallId;
+  final int? speakerVolume;
+  final int? microphoneVolume;
+  final String? transportState;
+  final int? codec;
+  final bool? rejectSco;
+  final List<CallParticipant> participants;
+  final String? error;
+
+  bool get hasCall => status != CallStatus.idle && status != CallStatus.ended;
 
   CallState copyWith({
     CallStatus? status,
@@ -46,40 +93,39 @@ class CallState {
     bool? isMuted,
     bool? isSpeaker,
     bool? isHeld,
-  }) {
-    return CallState(
-      status: status ?? this.status,
-      name: name ?? this.name,
-      number: number ?? this.number,
-      duration: duration ?? this.duration,
-      isMuted: isMuted ?? this.isMuted,
-      isSpeaker: isSpeaker ?? this.isSpeaker,
-      isHeld: isHeld ?? this.isHeld,
-    );
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-
-    return other is CallState &&
-        other.status == status &&
-        other.name == name &&
-        other.number == number &&
-        other.duration == duration &&
-        other.isMuted == isMuted &&
-        other.isSpeaker == isSpeaker &&
-        other.isHeld == isHeld;
-  }
-
-  @override
-  int get hashCode {
-    return status.hashCode ^
-        name.hashCode ^
-        number.hashCode ^
-        duration.hashCode ^
-        isMuted.hashCode ^
-        isSpeaker.hashCode ^
-        isHeld.hashCode;
-  }
+    bool? connected,
+    bool? busy,
+    String? deviceAddress,
+    String? gatewayAddress,
+    String? activeCallId,
+    int? speakerVolume,
+    int? microphoneVolume,
+    String? transportState,
+    int? codec,
+    bool? rejectSco,
+    List<CallParticipant>? participants,
+    String? error,
+    bool clearCall = false,
+    bool clearError = false,
+  }) => CallState(
+    status: status ?? this.status,
+    name: clearCall ? '' : name ?? this.name,
+    number: clearCall ? '' : number ?? this.number,
+    duration: clearCall ? Duration.zero : duration ?? this.duration,
+    isMuted: clearCall ? false : isMuted ?? this.isMuted,
+    isSpeaker: clearCall ? false : isSpeaker ?? this.isSpeaker,
+    isHeld: clearCall ? false : isHeld ?? this.isHeld,
+    connected: connected ?? this.connected,
+    busy: busy ?? this.busy,
+    deviceAddress: deviceAddress ?? this.deviceAddress,
+    gatewayAddress: gatewayAddress ?? this.gatewayAddress,
+    activeCallId: clearCall ? null : activeCallId ?? this.activeCallId,
+    speakerVolume: speakerVolume ?? this.speakerVolume,
+    microphoneVolume: microphoneVolume ?? this.microphoneVolume,
+    transportState: transportState ?? this.transportState,
+    codec: codec ?? this.codec,
+    rejectSco: rejectSco ?? this.rejectSco,
+    participants: clearCall ? const [] : participants ?? this.participants,
+    error: clearError ? null : error ?? this.error,
+  );
 }

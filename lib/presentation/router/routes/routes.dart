@@ -22,7 +22,10 @@ List<Page<dynamic>> onGenerateAppViewPages(
     case AppState.apps:
       return [AppsPage.page()];
     case AppState.calls:
+    case AppState.phone:
       return [CallsPage.page()];
+    case AppState.messages:
+      return [MessagesPage.page()];
     case AppState.media:
       return [MediaPage.page()];
     case AppState.settings:

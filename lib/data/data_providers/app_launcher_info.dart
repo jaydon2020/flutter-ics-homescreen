@@ -15,23 +15,33 @@ class AppLauncherInfo {
 }
 
 class AppLauncherList extends Notifier<List<AppLauncherInfo>> {
-  final _calls = AppLauncherInfo(
-    id: 'calls',
-    name: 'Calls',
-    icon: 'calls.svg',
+  final _phone = AppLauncherInfo(
+    id: 'phone',
+    name: 'Phone',
+    icon: 'phone.svg',
+    internal: true,
+  );
+  final _messages = AppLauncherInfo(
+    id: 'messages',
+    name: 'Messages',
+    icon: 'messages.svg',
     internal: true,
   );
 
   @override
   List<AppLauncherInfo> build() {
-    return [_calls];
+    return [_phone, _messages];
   }
 
   void update(List<AppLauncherInfo> newAppList) {
-    // The dial pad is built in and remains available without the launcher service.
+    // Phone and Messages remain available without the launcher service.
     state = [
-      _calls,
-      ...newAppList.where((app) => !(app.internal && app.id == 'calls')),
+      _phone,
+      _messages,
+      ...newAppList.where(
+        (app) =>
+            !(app.internal && {'calls', 'phone', 'messages'}.contains(app.id)),
+      ),
     ];
   }
 }
