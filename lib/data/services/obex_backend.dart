@@ -1,4 +1,5 @@
 import 'package:bluez_obex_native/bluez_obex_native.dart';
+import 'package:dbus/dbus.dart';
 
 /// Complete application-facing surface for BlueZ PBAP, MAP and transfers.
 /// Tests replace this interface; production never falls back to sample data.
@@ -70,6 +71,8 @@ class NativeObexBackend implements ObexBackend {
   BlueZObexClient? _client;
   BlueZObexSession? _pbapSession;
   BlueZObexSession? _mapSession;
+  DBusClient? _sessionBus;
+  String? _messageFolder;
 
   BlueZObexClient get _connected =>
       _client ?? (throw StateError('OBEX is not connected'));
@@ -86,6 +89,7 @@ class NativeObexBackend implements ObexBackend {
     await close();
     final client = await BlueZObexClient.connect();
     _client = client;
+    _sessionBus = DBusClient.session();
     Object? pbapError;
     try {
       _pbapSession = await client.createSession(address, target: 'pbap');
@@ -97,7 +101,9 @@ class NativeObexBackend implements ObexBackend {
     } catch (mapError) {
       if (_pbapSession == null) {
         await client.dispose();
+        await _sessionBus?.close();
         _client = null;
+        _sessionBus = null;
         throw StateError('PBAP failed: $pbapError; MAP failed: $mapError');
       }
     }
@@ -108,9 +114,12 @@ class NativeObexBackend implements ObexBackend {
     final pbap = _pbapSession;
     final map = _mapSession;
     final client = _client;
+    final sessionBus = _sessionBus;
     _pbapSession = null;
     _mapSession = null;
     _client = null;
+    _sessionBus = null;
+    _messageFolder = null;
     try {
       await pbap?.remove();
     } catch (_) {}
@@ -118,6 +127,7 @@ class NativeObexBackend implements ObexBackend {
       await map?.remove();
     } catch (_) {}
     await client?.dispose();
+    await sessionBus?.close();
   }
 
   @override
@@ -171,8 +181,11 @@ class NativeObexBackend implements ObexBackend {
   Future<BlueZObexMessageAccessProps> messageAccessProperties() =>
       _messageAccess.properties();
   @override
-  Future<void> setMessageFolder(String folder) =>
-      _messageAccess.setFolder(folder);
+  Future<void> setMessageFolder(String folder) async {
+    await _messageAccess.setFolder(folder);
+    _messageFolder = folder;
+  }
+
   @override
   Future<List<BlueZObexMessageFolder>> listMessageFolders({
     Map<String, Object?> filters = const {},
@@ -184,13 +197,90 @@ class NativeObexBackend implements ObexBackend {
   Future<List<BlueZObexMessageProps>> listMessages(
     String folder, {
     Map<String, Object?> filters = const {},
-  }) async {
-    final messages = await _messageAccess.listMessages(
-      folder,
-      filters: filters,
+  }) => _listMessagesOverDBus(folder, filters);
+
+  Future<List<BlueZObexMessageProps>> _listMessagesOverDBus(
+    String folder,
+    Map<String, Object?> filters,
+  ) async {
+    final bus = _sessionBus ?? (throw StateError('OBEX is not connected'));
+    final session = _mapSession ?? (throw StateError('MAP is unavailable'));
+    final object = DBusRemoteObject(
+      bus,
+      name: 'org.bluez.obex',
+      path: DBusObjectPath(session.objectPath),
     );
-    return [for (final message in messages) await message.properties()];
+    final normalized = folder.replaceAll(RegExp(r'^/+|/+$'), '');
+    final separator = normalized.lastIndexOf('/');
+    final child = separator < 0
+        ? normalized
+        : normalized.substring(separator + 1);
+    final parent = separator < 0 ? '' : normalized.substring(0, separator);
+    if (parent.isNotEmpty && parent != _messageFolder) {
+      await object.callMethod('org.bluez.obex.MessageAccess1', 'SetFolder', [
+        DBusString(parent),
+      ]);
+      _messageFolder = parent;
+    }
+    final response = await object.callMethod(
+      'org.bluez.obex.MessageAccess1',
+      'ListMessages',
+      [DBusString(child), _dbusFilters(filters)],
+      replySignature: DBusSignature('a{oa{sv}}'),
+    );
+    final entries = (response.returnValues.single as DBusDict).children;
+    return entries.entries.map((entry) {
+      final values = (entry.value as DBusDict).mapStringVariant();
+      T value<T>(String name, T fallback) {
+        final native = values[name]?.toNative();
+        return native is T ? native : fallback;
+      }
+
+      return BlueZObexMessageProps(
+        objectPath: entry.key.asObjectPath().value,
+        folder: value('Folder', ''),
+        subject: value('Subject', ''),
+        timestamp: value('Timestamp', ''),
+        sender: value('Sender', ''),
+        senderAddress: value('SenderAddress', ''),
+        replyTo: value('ReplyTo', ''),
+        recipient: value('Recipient', ''),
+        recipientAddress: value('RecipientAddress', ''),
+        type: value('Type', ''),
+        size: value('Size', 0),
+        text: value('Text', false),
+        status: value('Status', ''),
+        attachmentSize: value('AttachmentSize', 0),
+        priority: value('Priority', false),
+        read: value('Read', false),
+        deleted: value('Deleted', false),
+        sent: value('Sent', false),
+        protected: value('Protected', false),
+        deliveryStatus: value('DeliveryStatus', ''),
+        conversationId: value('ConversationId', 0),
+        conversationName: value('ConversationName', ''),
+        direction: value('Direction', ''),
+        attachmentMimeTypes: value('AttachmentMimeTypes', ''),
+      );
+    }).toList();
   }
+
+  DBusDict _dbusFilters(Map<String, Object?> filters) =>
+      DBusDict.stringVariant({
+        for (final entry in filters.entries)
+          if (_dbusValue(entry.key, entry.value) case final value?)
+            entry.key: value,
+      });
+
+  DBusValue? _dbusValue(String name, Object? value) => switch (value) {
+    bool value => DBusBoolean(value),
+    int value when name == 'SubjectLength' && value >= 0 && value <= 0xff =>
+      DBusByte(value),
+    int value when value >= 0 && value <= 0xffff => DBusUint16(value),
+    String value => DBusString(value),
+    List<String> value => DBusArray.string(value),
+    _ => null,
+  };
 
   @override
   Future<void> updateInbox() => _messageAccess.updateInbox();

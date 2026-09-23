@@ -26,8 +26,8 @@ bool bluetoothPairingLimitReached(int pairedDeviceCount) =>
     pairedDeviceCount >= maxPairedBluetoothDevices;
 
 bool bluetoothSupportsMediaProfile(Iterable<String> uuids) => uuids.any(
-      (uuid) => bluetoothSupportedProfileUuids.contains(uuid.toLowerCase()),
-    );
+  (uuid) => bluetoothSupportedProfileUuids.contains(uuid.toLowerCase()),
+);
 
 bool bluetoothDeviceSupportsMediaProfile(BlueZDevice device) =>
     bluetoothSupportsMediaProfile(device.uuids.map((uuid) => uuid.value));
@@ -103,8 +103,9 @@ class BluetoothState {
           ? null
           : disconnectingAddress ?? this.disconnectingAddress,
       operation: clearBusyAddress ? null : operation ?? this.operation,
-      pairingRequest:
-          clearPairingRequest ? null : pairingRequest ?? this.pairingRequest,
+      pairingRequest: clearPairingRequest
+          ? null
+          : pairingRequest ?? this.pairingRequest,
     );
   }
 }
@@ -261,6 +262,15 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
           _client.agentRespond(request.requestId, accepted: true);
           return;
         }
+        // A paired phone can bring up HFP after the initial BlueZ connection
+        // completes, including while the driver is on another screen.
+        if (device.paired &&
+            device.trusted &&
+            bluetoothDeviceIsSupported(device) &&
+            _connectedDeviceExcept(device) == null) {
+          _client.agentRespond(request.requestId, accepted: true);
+          return;
+        }
         if (!_isOnBluetoothPage) {
           // Device connected from outside AGL (e.g. from the phone's BT
           // settings) while the BT page is not open — reject the service.
@@ -315,11 +325,13 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
         !wasConnected &&
         state.pairingRequest == null &&
         state.busyAddress != device.address) {
-      if (!_isOnBluetoothPage) {
-        // Connection was not initiated from AGL's BT page — disconnect it
-        // silently rather than showing a switch dialog or allowing it.
+      if (!device.paired ||
+          !device.trusted ||
+          !bluetoothDeviceIsSupported(device)) {
+        // Reject unknown devices, but let the sole trusted phone reconnect
+        // its hands-free profile while another AGL page is visible.
         debugPrint(
-          'Bluetooth: Disconnecting external connection from ${device.address} (not on BT page)',
+          'Bluetooth: Disconnecting untrusted external connection from ${device.address}',
         );
         unawaited(_rejectExternalConnection(device));
         return;
@@ -436,10 +448,8 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
     await _stopDiscovery();
 
     _updateState(
-      (state) => state.copyWith(
-        clearPairingRequest: true,
-        scanTimedOut: timedOut,
-      ),
+      (state) =>
+          state.copyWith(clearPairingRequest: true, scanTimedOut: timedOut),
     );
   }
 
@@ -523,9 +533,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       if (device.connected) await _disconnectDevice(device);
       if (current?.connected ?? false) {
         _updateState(
-          (state) => state.copyWith(
-            disconnectingAddress: current!.address,
-          ),
+          (state) => state.copyWith(disconnectingAddress: current!.address),
         );
         await _disconnectDevice(current!);
         _updateState(
@@ -806,11 +814,13 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
 // Provider
 // ---------------------------------------------------------------------------
 
-final blueZClientFactoryProvider =
-    Provider<BlueZClient Function()>((ref) => BlueZClient.new);
+final blueZClientFactoryProvider = Provider<BlueZClient Function()>(
+  (ref) => BlueZClient.new,
+);
 
-final bluetoothProvider =
-    NotifierProvider<BluetoothNotifier, BluetoothState>(BluetoothNotifier.new);
+final bluetoothProvider = NotifierProvider<BluetoothNotifier, BluetoothState>(
+  BluetoothNotifier.new,
+);
 
 /// Native Bluetooth settings are disabled on the desktop testing branch.
 final nativeBluetoothAvailableProvider = Provider<bool>((_) => false);

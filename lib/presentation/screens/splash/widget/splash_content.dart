@@ -35,16 +35,15 @@ class SplashContentState extends ConsumerState<SplashContent>
     );
 
     // Set up the fade animation
-    _fadeAnimation =
-        Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController)
-          ..addListener(() {
-            // Check the status of the animation and set the state to hide Lottie when fading starts.
-            if (_fadeAnimation.value > 0.0 && _showLottieAnimation) {
-              setState(() {
-                _showLottieAnimation = false;
-              });
-            }
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController)
+      ..addListener(() {
+        // Check the status of the animation and set the state to hide Lottie when fading starts.
+        if (_fadeAnimation.value > 0.0 && _showLottieAnimation) {
+          setState(() {
+            _showLottieAnimation = false;
           });
+        }
+      });
 
     // Start the fade-in transition after the Lottie animation has played for some time
     Future.delayed(const Duration(seconds: 6), () {
@@ -86,55 +85,57 @@ class SplashContentState extends ConsumerState<SplashContent>
         // FadeTransition wraps existing UI.
         FadeTransition(
           opacity: _fadeAnimation,
-          child: Center(
-            child: buildWarningUI(),
-          ),
+          child: Center(child: buildWarningUI()),
         ),
       ],
     );
   }
 
   Widget buildWarningUI() {
-    return Column(
-      children: [
-        const Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'WARNING:',
-                style: TextStyle(color: Color(0xFFC1D8FF), fontSize: 44),
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: SizedBox(
+        width: 757,
+        height: 800,
+        child: Column(
+          children: [
+            const Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'WARNING:',
+                    style: TextStyle(color: Color(0xFFC1D8FF), fontSize: 44),
+                  ),
+                  SizedBox(height: 38),
+                  SizedBox(
+                    height: 488,
+                    child: Text(
+                      splashWarning,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 40,
+                        height: 1.7,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(height: 38),
-              SizedBox(
-                //color: Colors.amber,
-                width: 757,
-                height: 488,
-                child: Text(
-                  splashWarning,
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 40,
-                      height: 1.7,
-                      fontWeight: FontWeight.w400),
-                  textAlign: TextAlign.left,
-                ),
-              ),
-            ],
-          ),
+            ),
+            GenericButton(
+              height: 122,
+              width: 452,
+              text: 'Continue',
+              onTap: () {
+                ref.read(appProvider.notifier).update(AppState.dashboard);
+              },
+            ),
+            const SizedBox(height: 30),
+          ],
         ),
-        GenericButton(
-          height: 122,
-          width: 452,
-          text: 'Continue',
-          onTap: () {
-            ref.read(appProvider.notifier).update(AppState.dashboard);
-          },
-        ),
-        const SizedBox(
-          height: 72,
-        )
-      ],
+      ),
     );
   }
 }

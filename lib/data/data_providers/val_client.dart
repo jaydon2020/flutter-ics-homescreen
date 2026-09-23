@@ -13,19 +13,23 @@ class ValClient {
     debugPrint("Connecting to KUKSA.val at ${config.hostname}:${config.port}");
     ChannelCredentials creds;
     if (config.useTls && config.caCertificate.isNotEmpty) {
-      print("Using TLS");
+      debugPrint("Using TLS");
       if (config.tlsServerName.isNotEmpty) {
         creds = ChannelCredentials.secure(
-            certificates: config.caCertificate,
-            authority: config.tlsServerName);
+          certificates: config.caCertificate,
+          authority: config.tlsServerName,
+        );
       } else {
         creds = ChannelCredentials.secure(certificates: config.caCertificate);
       }
     } else {
       creds = const ChannelCredentials.insecure();
     }
-    channel = ClientChannel(config.hostname,
-        port: config.port, options: ChannelOptions(credentials: creds));
+    channel = ClientChannel(
+      config.hostname,
+      port: config.port,
+      options: ChannelOptions(credentials: creds),
+    );
     stub = VALClient(channel);
 
     channel.onConnectionStateChanged.listen((ConnectionState state) {
@@ -34,7 +38,9 @@ class ValClient {
         case ConnectionState.ready:
           debugPrint('KUKSA.val channel connected');
           if (resubscribeOnSubscriptionError) {
-            debugPrint('Recovering from subscription error, attempting to resubscribe');
+            debugPrint(
+              'Recovering from subscription error, attempting to resubscribe',
+            );
             resubscribeOnSubscriptionError = false;
             subscribe();
           }
@@ -80,17 +86,24 @@ class ValClient {
       request.entries.add(entry);
     }
     try {
-      ResponseStream responseStream =
-          stub.subscribe(request, options: CallOptions(metadata: metadata));
-      responseStream.listen((value) async {
-        for (var update in value.updates) {
-          if (!(update.hasEntry() && update.entry.hasPath())) continue;
-          handleSignalUpdate(update.entry);
-        }
-      }, onError: (stacktrace, errorDescriptor) {
-        resubscribeOnSubscriptionError = true;
-        debugPrint("(ValClient.subscribe onError) stacktrace: ${stacktrace.toString()}");
-      });
+      ResponseStream responseStream = stub.subscribe(
+        request,
+        options: CallOptions(metadata: metadata),
+      );
+      responseStream.listen(
+        (value) async {
+          for (var update in value.updates) {
+            if (!(update.hasEntry() && update.entry.hasPath())) continue;
+            handleSignalUpdate(update.entry);
+          }
+        },
+        onError: (stacktrace, errorDescriptor) {
+          resubscribeOnSubscriptionError = true;
+          debugPrint(
+            "(ValClient.subscribe onError) stacktrace: ${stacktrace.toString()}",
+          );
+        },
+      );
     } catch (e) {
       debugPrint(e.toString());
     }
@@ -136,64 +149,77 @@ class ValClient {
     set(path, dp, actuator);
   }
 
-  void set(String path, Datapoint dp, bool actuator) async {
-    var entry = DataEntry()..path = path;
-    var update = EntryUpdate();
-    if (actuator) {
-      entry.actuatorTarget = dp;
-      update.fields.add(Field.FIELD_ACTUATOR_TARGET);
-    } else {
-      entry.value = dp;
-      update.fields.add(Field.FIELD_VALUE);
+  Future<void> set(String path, Datapoint dp, bool actuator) async {
+    try {
+      var entry = DataEntry()..path = path;
+      var update = EntryUpdate();
+      if (actuator) {
+        entry.actuatorTarget = dp;
+        update.fields.add(Field.FIELD_ACTUATOR_TARGET);
+      } else {
+        entry.value = dp;
+        update.fields.add(Field.FIELD_VALUE);
+      }
+      update.entry = entry;
+      var request = SetRequest();
+      request.updates.add(update);
+      Map<String, String> metadata = {};
+      if (config.authorization.isNotEmpty) {
+        metadata = {'authorization': "Bearer ${config.authorization}"};
+      }
+      await stub.set(request, options: CallOptions(metadata: metadata));
+    } catch (error) {
+      debugPrint('KUKSA set unavailable for $path: $error');
     }
-    update.entry = entry;
-    var request = SetRequest();
-    request.updates.add(update);
-    Map<String, String> metadata = {};
-    if (config.authorization.isNotEmpty) {
-      metadata = {'authorization': "Bearer ${config.authorization}"};
-    }
-    await stub.set(request, options: CallOptions(metadata: metadata));
   }
 
-  void get(String path) async {
-    var entry = EntryRequest()..path = path;
-    entry.fields.add(Field.FIELD_VALUE);
-    var request = GetRequest();
-    request.entries.add(entry);
-    Map<String, String> metadata = {};
-    if (config.authorization.isNotEmpty) {
-      metadata = {'authorization': "Bearer ${config.authorization}"};
-    }
-    debugPrint("Getting $path value");
-    var response =
-        await stub.get(request, options: CallOptions(metadata: metadata));
-    if (response.hasError()) {
-      debugPrint("Get request had error {response.error().reason}");
-      return;
-    }
-    for (var entry in response.entries) {
-      if (!entry.hasPath()) continue;
-      handleSignalUpdate(entry);
+  Future<void> get(String path) async {
+    try {
+      var entry = EntryRequest()..path = path;
+      entry.fields.add(Field.FIELD_VALUE);
+      var request = GetRequest();
+      request.entries.add(entry);
+      Map<String, String> metadata = {};
+      if (config.authorization.isNotEmpty) {
+        metadata = {'authorization': "Bearer ${config.authorization}"};
+      }
+      debugPrint("Getting $path value");
+      var response = await stub.get(
+        request,
+        options: CallOptions(metadata: metadata),
+      );
+      if (response.hasError()) {
+        debugPrint("Get request had error {response.error().reason}");
+        return;
+      }
+      for (var entry in response.entries) {
+        if (!entry.hasPath()) continue;
+        handleSignalUpdate(entry);
+      }
+    } catch (error) {
+      debugPrint('KUKSA get unavailable for $path: $error');
     }
   }
 
   void setDistanceUnit(DistanceUnit unit) async {
-    setString(VSSPath.vehicleHmiDistanceUnit,
+    setString(
+      VSSPath.vehicleHmiDistanceUnit,
       unit == DistanceUnit.kilometers ? "KILOMETERS" : "MILES",
       true,
     );
   }
 
   void setTemperatureUnit(TemperatureUnit unit) async {
-    setString(VSSPath.vehicleHmiTemperatureUnit,
+    setString(
+      VSSPath.vehicleHmiTemperatureUnit,
       unit == TemperatureUnit.celsius ? "C" : "F",
       true,
     );
   }
 
   void setPressureUnit(PressureUnit unit) async {
-    setString(VSSPath.vehicleHmiPressureUnit,
+    setString(
+      VSSPath.vehicleHmiPressureUnit,
       unit == PressureUnit.kilopascals ? "KPA" : "PSI",
       true,
     );

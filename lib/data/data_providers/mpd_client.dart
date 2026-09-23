@@ -19,54 +19,61 @@ class MpdClient {
   MpdClient({required this.config, required this.ref}) {
     debugPrint("Connecting to MPD at ${config.hostname}:${config.port}");
     client = api.MpdClient(
-        connectionDetails: api.MpdConnectionDetails(
-            host: config.hostname,
-            port: config.port,
-            timeout: const Duration(minutes: 2)),
-        onConnect: () => handleConnect(),
-        onDone: () => handleDone(),
-        onError: (e, st) => handleError(e, st));
+      connectionDetails: api.MpdConnectionDetails(
+        host: config.hostname,
+        port: config.port,
+        timeout: const Duration(minutes: 2),
+      ),
+      onConnect: () => handleConnect(),
+      onDone: () => handleDone(),
+      onError: (e, st) => handleError(e, st),
+    );
 
     // Second client instance to keep running in idle state to receive
     // events
     eventClient = api.MpdClient(
-        connectionDetails: api.MpdConnectionDetails(
-            host: config.hostname,
-            port: config.port,
-            timeout: const Duration(minutes: 2)),
-        onConnect: () => handleConnect(),
-        onDone: () => handleDone(),
-        onError: (e, st) => handleError(e, st));
+      connectionDetails: api.MpdConnectionDetails(
+        host: config.hostname,
+        port: config.port,
+        timeout: const Duration(minutes: 2),
+      ),
+      onConnect: () => handleConnect(),
+      onDone: () => handleDone(),
+      onError: (e, st) => handleError(e, st),
+    );
   }
 
-  void connect() async {
-    var idleEvents = <api.MpdSubsystem>{
-      api.MpdSubsystem.database,
-      api.MpdSubsystem.playlist,
-      api.MpdSubsystem.player
-    };
-    bool done = false;
-    while (!done) {
-      //debugPrint("Calling MPD idle!");
-      var events = await eventClient.idle(idleEvents);
-      for (var event in events) {
-        switch (event) {
-          case api.MpdSubsystem.database:
-            //debugPrint("Got MPD database event");
-            await handleDatabaseEvent();
-            break;
-          case api.MpdSubsystem.playlist:
-            //debugPrint("Got MPD queue event");
-            await handleQueueEvent();
-            break;
-          case api.MpdSubsystem.player:
-            //debugPrint("Got MPD player event");
-            await handlePlayerEvent();
-            break;
-          default:
-            break;
+  Future<void> connect() async {
+    try {
+      var idleEvents = <api.MpdSubsystem>{
+        api.MpdSubsystem.database,
+        api.MpdSubsystem.playlist,
+        api.MpdSubsystem.player,
+      };
+      while (true) {
+        //debugPrint("Calling MPD idle!");
+        var events = await eventClient.idle(idleEvents);
+        for (var event in events) {
+          switch (event) {
+            case api.MpdSubsystem.database:
+              //debugPrint("Got MPD database event");
+              await handleDatabaseEvent();
+              break;
+            case api.MpdSubsystem.playlist:
+              //debugPrint("Got MPD queue event");
+              await handleQueueEvent();
+              break;
+            case api.MpdSubsystem.player:
+              //debugPrint("Got MPD player event");
+              await handlePlayerEvent();
+              break;
+            default:
+              break;
+          }
         }
       }
+    } catch (error) {
+      debugPrint('MPD unavailable: $error');
     }
   }
 
@@ -132,25 +139,35 @@ class MpdClient {
       //    "Got playlist entry \"$title\" - \"$album\" - \"$artist\" at $position");
 
       if (position == 0) {
-        ref.read(mediaPlayerStateProvider.notifier).updateCurrent(PlaylistEntry(
-            title: title,
-            album: album,
-            artist: artist,
-            file: song.file,
-            duration: duration,
-            position: position));
+        ref
+            .read(mediaPlayerStateProvider.notifier)
+            .updateCurrent(
+              PlaylistEntry(
+                title: title,
+                album: album,
+                artist: artist,
+                file: song.file,
+                duration: duration,
+                position: position,
+              ),
+            );
 
         if (song.file.isNotEmpty) {
           readSongArt(position, song.file);
         }
       }
-      ref.read(playlistProvider.notifier).add(PlaylistEntry(
-          title: title,
-          album: album,
-          artist: artist,
-          file: song.file,
-          duration: duration,
-          position: position));
+      ref
+          .read(playlistProvider.notifier)
+          .add(
+            PlaylistEntry(
+              title: title,
+              album: album,
+              artist: artist,
+              file: song.file,
+              duration: duration,
+              position: position,
+            ),
+          );
     }
   }
 
@@ -190,13 +207,18 @@ class MpdClient {
       songFile = song.file;
       //debugPrint(
       //    "Got song \"$title\" - \"$album\" - \"$artist\" at $songPosition, file \"$songFile\"");
-      ref.read(mediaPlayerStateProvider.notifier).updateCurrent(PlaylistEntry(
-          title: title,
-          album: album,
-          artist: artist,
-          file: songFile,
-          duration: duration,
-          position: songPosition));
+      ref
+          .read(mediaPlayerStateProvider.notifier)
+          .updateCurrent(
+            PlaylistEntry(
+              title: title,
+              album: album,
+              artist: artist,
+              file: songFile,
+              duration: duration,
+              position: songPosition,
+            ),
+          );
     }
 
     var status = await eventClient.status();
@@ -223,8 +245,6 @@ class MpdClient {
           //debugPrint("status.state = paused");
           playState = PlayState.paused;
           ref.read(mediaPlayerPositionProvider.notifier).pause();
-          break;
-        default:
           break;
       }
       ref.read(mediaPlayerStateProvider.notifier).updatePlayState(playState);
@@ -270,7 +290,7 @@ class MpdClient {
     bool first = true;
     do {
       //debugPrint("Reading, offset = $offset, size = $size");
-      api.MpdImage? chunk = null;
+      api.MpdImage? chunk;
       try {
         chunk = await client.readpicture(file, offset);
       } catch (e) {
@@ -317,11 +337,15 @@ class MpdClient {
   // Player commands
 
   void play() async {
-    var playState = ref.read(mediaPlayerStateProvider
-        .select((mediaplayer) => mediaplayer.playState));
+    var playState = ref.read(
+      mediaPlayerStateProvider.select((mediaplayer) => mediaplayer.playState),
+    );
     if (playState == PlayState.stopped) {
-      int position = ref.read(mediaPlayerStateProvider
-          .select((mediaplayer) => mediaplayer.playlistPosition));
+      int position = ref.read(
+        mediaPlayerStateProvider.select(
+          (mediaplayer) => mediaplayer.playlistPosition,
+        ),
+      );
       //debugPrint("Calling MPD play, position = $position");
       if (position >= 0) {
         client.play(position);
@@ -332,24 +356,33 @@ class MpdClient {
   }
 
   void pause() async {
-    if (ref.read(mediaPlayerStateProvider
-            .select((mediaplayer) => mediaplayer.playState)) ==
+    if (ref.read(
+          mediaPlayerStateProvider.select(
+            (mediaplayer) => mediaplayer.playState,
+          ),
+        ) ==
         PlayState.playing) {
       client.pause(true);
     }
   }
 
   void next() async {
-    if (ref.read(mediaPlayerStateProvider
-            .select((mediaplayer) => mediaplayer.playState)) ==
+    if (ref.read(
+          mediaPlayerStateProvider.select(
+            (mediaplayer) => mediaplayer.playState,
+          ),
+        ) ==
         PlayState.playing) {
       client.next();
     }
   }
 
   void previous() async {
-    if (ref.read(mediaPlayerStateProvider
-            .select((mediaplayer) => mediaplayer.playState)) ==
+    if (ref.read(
+          mediaPlayerStateProvider.select(
+            (mediaplayer) => mediaplayer.playState,
+          ),
+        ) ==
         PlayState.playing) {
       client.previous();
     }

@@ -17,6 +17,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
   Directory? _temporaryDirectory;
   StreamSubscription<BlueZObexEvent>? _eventSubscription;
   int _generation = 0;
+  bool _refreshingMessages = false;
 
   @override
   PhoneDataState build() {
@@ -80,11 +81,11 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         busy: false,
         clearError: true,
       );
-      await Future.wait([
-        refreshContacts(),
-        refreshRecents(),
-        refreshConversations(),
-      ]);
+      // Contacts and call history share one PBAP session. Each refresh changes
+      // its selected phonebook, so they must never run concurrently.
+      await refreshContacts();
+      await refreshRecents();
+      await refreshConversations();
     } catch (error) {
       if (generation != _generation) return;
       state = state.copyWith(
@@ -208,11 +209,16 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       try {
         recents = await _pullRecents('cch', '${directory.path}/combined.vcf');
       } catch (_) {
-        final lists = await Future.wait([
-          _pullRecents('ich', '${directory.path}/incoming.vcf'),
-          _pullRecents('och', '${directory.path}/outgoing.vcf'),
-          _pullRecents('mch', '${directory.path}/missed.vcf'),
-        ]);
+        final lists = <List<RecentCall>>[];
+        for (final item in const [
+          ('ich', 'incoming.vcf'),
+          ('och', 'outgoing.vcf'),
+          ('mch', 'missed.vcf'),
+        ]) {
+          lists.add(
+            await _pullRecents(item.$1, '${directory.path}/${item.$2}'),
+          );
+        }
         recents = lists.expand((items) => items).toList();
       }
       final unique = <String, RecentCall>{
@@ -245,16 +251,22 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
 
   Future<void> refreshConversations({bool silent = false}) async {
     final backend = _backend;
-    if (backend == null) return;
+    if (backend == null || _refreshingMessages) return;
+    _refreshingMessages = true;
     if (!silent) state = state.copyWith(busy: true, clearError: true);
     try {
       await backend.messageAccessProperties();
       await backend.messageFilterFields();
-      await backend.updateInbox();
-      final results = await Future.wait([
-        backend.listMessages('telecom/msg/inbox'),
-        backend.listMessages('telecom/msg/sent'),
-      ]);
+      // UpdateInbox is an optional MAP operation. Several phones return
+      // org.bluez.obex.Error.Failed: Not Implemented but still support listing
+      // and downloading messages, so a rejected refresh must not disable MAP.
+      try {
+        await backend.updateInbox();
+      } catch (_) {}
+      final results = [
+        await backend.listMessages('telecom/msg/inbox'),
+        await backend.listMessages('telecom/msg/sent'),
+      ];
       final messages =
           results.expand((items) => items).map(_messageFromProps).toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -271,6 +283,8 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         busy: false,
         error: 'Messages unavailable: ${_friendlyError(error)}',
       );
+    } finally {
+      _refreshingMessages = false;
     }
   }
 
@@ -393,7 +407,15 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
     final backend = _backend!;
     final deadline = DateTime.now().add(const Duration(seconds: 30));
     while (DateTime.now().isBefore(deadline)) {
-      final props = await backend.transferProperties(id);
+      BlueZObexTransferProps props;
+      try {
+        props = await backend.transferProperties(id);
+      } catch (error) {
+        // BlueZ can remove a short-lived Transfer1 object immediately after a
+        // successful local transfer, before the next poll reaches it.
+        if (_friendlyError(error).contains('UnknownObject')) return;
+        rethrow;
+      }
       final status = props.status.toLowerCase();
       final transferStatus = switch (status) {
         'complete' => PhoneTransferStatus.complete,

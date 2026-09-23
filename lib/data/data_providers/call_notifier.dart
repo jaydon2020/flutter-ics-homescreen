@@ -31,9 +31,7 @@ class CallStateNotifier extends Notifier<CallState> {
 
   void _syncBluetooth(BluetoothState bluetooth) {
     final device = bluetooth.devices
-        .where(
-          (item) => item.connected && bluetoothDeviceIsSupported(item),
-        )
+        .where((item) => item.connected && bluetoothDeviceIsSupported(item))
         .firstOrNull;
     if (device == null) {
       if (state.deviceAddress != null) unawaited(_disconnect());
@@ -104,6 +102,12 @@ class CallStateNotifier extends Notifier<CallState> {
         snapshot.clientState == PipeWireTelephonyClientState.ready &&
         snapshot.gatewayAddress != null &&
         matchingGateway;
+    final gatewayError =
+        snapshot.clientState == PipeWireTelephonyClientState.ready &&
+            snapshot.gatewayAddress == null &&
+            address != null
+        ? 'Bluetooth is connected, but hands-free calling is unavailable. Reconnect the phone in Bluetooth settings.'
+        : null;
     final calls = snapshot.calls
         .where((call) => call.state != PipeWireCallState.disconnected)
         .toList();
@@ -147,9 +151,9 @@ class CallStateNotifier extends Notifier<CallState> {
       codec: snapshot.codec,
       rejectSco: snapshot.rejectSco,
       participants: participants,
-      error: snapshot.error?.toString(),
+      error: snapshot.error?.toString() ?? gatewayError,
       clearCall: primary == null,
-      clearError: snapshot.error == null,
+      clearError: snapshot.error == null && gatewayError == null,
     );
     if ((snapshot.microphoneVolume ?? 0) > 0) {
       _savedMicrophoneVolume = snapshot.microphoneVolume!;

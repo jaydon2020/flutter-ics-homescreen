@@ -39,8 +39,9 @@ class DashBoardState extends ConsumerState<DashBoard>
       });
     }
 
-    bool randomHybridAnimation =
-        ref.read(appConfigProvider).randomHybridAnimation;
+    bool randomHybridAnimation = ref
+        .read(appConfigProvider)
+        .randomHybridAnimation;
     if (randomHybridAnimation) {
       timer = Timer.periodic(const Duration(seconds: 5), (timer) {
         Random random = Random();
@@ -63,13 +64,13 @@ class DashBoardState extends ConsumerState<DashBoard>
   @override
   Widget build(BuildContext context) {
     Widget fadeContent = FadeTransition(
-        opacity: _animation,
-        child: const Column(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            RepaintBoundary(
-                child: Row(
+      opacity: _animation,
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          RepaintBoundary(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               //mainAxisSize: MainAxisSize.max,
               children: [
@@ -77,31 +78,37 @@ class DashBoardState extends ConsumerState<DashBoard>
                 SpeedProgressIndicator(),
                 FuelProgressIndicator(),
               ],
-            )),
-            RepaintBoundary(child: HybridModel()),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TemperatureRowWidget(),
-                RangeWidget(),
-              ],
             ),
-            CarStatus(),
-          ],
-        ));
+          ),
+          RepaintBoundary(child: HybridModel()),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [TemperatureRowWidget(), RangeWidget()],
+          ),
+          CarStatus(),
+        ],
+      ),
+    );
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Positioned.fill(
-          child: fadeContent,
-        ),
-        Positioned(
-            bottom: 138,
-            child: Align(
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: SizedBox(
+        width: 800,
+        height: 1600,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned.fill(child: fadeContent),
+            Positioned(
+              bottom: 138,
+              child: Align(
                 alignment: Alignment.bottomCenter,
-                child: ref.read(carImageProvider))),
-      ],
+                child: ref.read(carImageProvider),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

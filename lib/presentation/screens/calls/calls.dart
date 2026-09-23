@@ -188,7 +188,11 @@ class _PhoneStatus extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  ready ? 'Ready' : 'Disconnected',
+                  ready
+                      ? 'Ready'
+                      : phone.deviceName == null
+                      ? 'Disconnected'
+                      : 'Calls unavailable',
                   style: TextStyle(
                     color: ready
                         ? AGLDemoColors.greenColor
@@ -382,6 +386,7 @@ class _ContactsView extends ConsumerWidget {
                             ),
                           ),
                         _PhoneRow(
+                          wifiGradient: true,
                           leading: _ContactAvatar(contact: contact),
                           title: contact.name,
                           subtitle: contact.primaryNumber,
@@ -555,6 +560,7 @@ class _DialView extends ConsumerWidget {
       );
     }
     return SingleChildScrollView(
+      reverse: true,
       child: Column(
         children: [
           numberArea,
@@ -570,6 +576,7 @@ class _DialView extends ConsumerWidget {
 
 class _PhoneRow extends StatelessWidget {
   const _PhoneRow({
+    this.wifiGradient = false,
     required this.leading,
     required this.title,
     required this.subtitle,
@@ -582,6 +589,7 @@ class _PhoneRow extends StatelessWidget {
     this.onSecondary,
   });
   final Widget leading;
+  final bool wifiGradient;
   final String title;
   final String subtitle;
   final String? meta;
@@ -597,9 +605,15 @@ class _PhoneRow extends StatelessWidget {
     height: 128,
     padding: const EdgeInsets.symmetric(horizontal: 22),
     decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Color(0xff050711), Color(0xff101638)],
-      ),
+      gradient: wifiGradient
+          ? const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xff2388e8), AGLDemoColors.buttonFillEnabledColor],
+            )
+          : const LinearGradient(
+              colors: [Color(0xff050711), Color(0xff101638)],
+            ),
       borderRadius: BorderRadius.circular(24),
     ),
     child: Row(

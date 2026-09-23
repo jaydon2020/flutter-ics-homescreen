@@ -98,7 +98,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          theme: ThemeData.dark(),
+          theme: ThemeData.dark().copyWith(splashFactory: NoSplash.splashFactory),
           home: Scaffold(body: page),
         ),
       ),
@@ -114,6 +114,7 @@ void main() {
     expect(find.text('Contacts'), findsOneWidget);
     expect(find.text('Dial'), findsOneWidget);
     final before = tester.getTopLeft(find.byKey(const ValueKey('dial-keypad')));
+    expect(before.dy, greaterThan(1000));
     await tester.tap(find.byKey(const ValueKey('dial-key-6')));
     await tester.tap(find.byKey(const ValueKey('dial-key-0')));
     await tester.pump();
@@ -194,6 +195,21 @@ void main() {
       active: true,
     );
     expect(find.byKey(const ValueKey('in-call-controls')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Dashboard shell fits 1280x720 landscape', (tester) async {
+    await show(
+      tester,
+      const Stack(
+        children: [
+          DashboardPage(),
+          Positioned(top: 0, bottom: 0, left: 0, child: VolumeFanControl()),
+        ],
+      ),
+      size: const Size(1280, 720),
+    );
+    await tester.pump(const Duration(seconds: 1));
     expect(tester.takeException(), isNull);
   });
 }
