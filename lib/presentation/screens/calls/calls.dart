@@ -309,7 +309,7 @@ class _RecentsView extends ConsumerWidget {
   }
 }
 
-class _ContactsView extends ConsumerWidget {
+class _ContactsView extends ConsumerStatefulWidget {
   const _ContactsView({
     required this.contacts,
     required this.query,
@@ -320,19 +320,32 @@ class _ContactsView extends ConsumerWidget {
   final ValueChanged<String> onQueryChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final normalized = query.toLowerCase();
-    final filtered = contacts
+  ConsumerState<_ContactsView> createState() => _ContactsViewState();
+}
+
+class _ContactsViewState extends ConsumerState<_ContactsView> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = widget.query.toLowerCase();
+    final filtered = widget.contacts
         .where(
           (contact) =>
               contact.name.toLowerCase().contains(normalized) ||
-              contact.numbers.any((number) => number.contains(query)),
+              contact.numbers.any((number) => number.contains(widget.query)),
         )
         .toList();
     return Column(
       children: [
         TextField(
-          onChanged: onQueryChanged,
+          onChanged: widget.onQueryChanged,
           style: const TextStyle(color: Colors.white, fontSize: 18),
           decoration: InputDecoration(
             hintText: 'Search contacts',
@@ -357,54 +370,66 @@ class _ContactsView extends ConsumerWidget {
                   title: 'No contacts found',
                   subtitle: 'Connect a phone with contact sharing enabled.',
                 )
-              : ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final contact = filtered[index];
-                    final letter = contact.name.isEmpty
-                        ? '#'
-                        : contact.name[0].toUpperCase();
-                    final previousLetter = index == 0
-                        ? null
-                        : filtered[index - 1].name.isEmpty
-                        ? '#'
-                        : filtered[index - 1].name[0].toUpperCase();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (letter != previousLetter)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-                            child: Text(
-                              letter,
-                              style: const TextStyle(
-                                color: AGLDemoColors.jordyBlueColor,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
+              : RawScrollbar(
+                  controller: _scrollController,
+                  thumbVisibility: true,
+                  interactive: true,
+                  thickness: 28,
+                  minThumbLength: 80,
+                  radius: const Radius.circular(14),
+                  thumbColor: AGLDemoColors.periwinkleColor,
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.only(right: 36),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final contact = filtered[index];
+                      final letter = contact.name.isEmpty
+                          ? '#'
+                          : contact.name[0].toUpperCase();
+                      final previousLetter = index == 0
+                          ? null
+                          : filtered[index - 1].name.isEmpty
+                          ? '#'
+                          : filtered[index - 1].name[0].toUpperCase();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (letter != previousLetter)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                              child: Text(
+                                letter,
+                                style: const TextStyle(
+                                  color: AGLDemoColors.jordyBlueColor,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
+                          _PhoneRow(
+                            wifiGradient: true,
+                            leading: _ContactAvatar(contact: contact),
+                            title: contact.name,
+                            subtitle: contact.primaryNumber,
+                            primaryIcon: Icons.call_rounded,
+                            onPrimary: () =>
+                                _callContact(context, ref, contact),
+                            secondaryIcon: Icons.message_rounded,
+                            onSecondary: () {
+                              ref
+                                  .read(phoneDataProvider.notifier)
+                                  .composeTo(contact.primaryNumber);
+                              ref
+                                  .read(appProvider.notifier)
+                                  .update(AppState.messages);
+                            },
                           ),
-                        _PhoneRow(
-                          wifiGradient: true,
-                          leading: _ContactAvatar(contact: contact),
-                          title: contact.name,
-                          subtitle: contact.primaryNumber,
-                          primaryIcon: Icons.call_rounded,
-                          onPrimary: () => _callContact(context, ref, contact),
-                          secondaryIcon: Icons.message_rounded,
-                          onSecondary: () {
-                            ref
-                                .read(phoneDataProvider.notifier)
-                                .composeTo(contact.primaryNumber);
-                            ref
-                                .read(appProvider.notifier)
-                                .update(AppState.messages);
-                          },
-                        ),
-                      ],
-                    );
-                  },
+                        ],
+                      );
+                    },
+                  ),
                 ),
         ),
       ],
@@ -668,21 +693,29 @@ class _PhoneRow extends StatelessWidget {
           const SizedBox(width: 16),
         ],
         if (secondaryIcon != null) ...[
-          IconButton(
-            onPressed: onSecondary,
-            tooltip: 'Message',
-            icon: Icon(secondaryIcon),
-            color: AGLDemoColors.jordyBlueColor,
-            iconSize: 28,
+          SizedBox.square(
+            dimension: 64,
+            child: IconButton(
+              onPressed: onSecondary,
+              tooltip: 'Message',
+              icon: Icon(secondaryIcon),
+              color: AGLDemoColors.jordyBlueColor,
+              iconSize: 28,
+              padding: EdgeInsets.zero,
+            ),
           ),
           const SizedBox(width: 8),
         ],
-        IconButton(
-          onPressed: onPrimary,
-          tooltip: 'Call',
-          icon: Icon(primaryIcon),
-          color: AGLDemoColors.greenColor,
-          iconSize: 30,
+        SizedBox.square(
+          dimension: 64,
+          child: IconButton(
+            onPressed: onPrimary,
+            tooltip: 'Call',
+            icon: Icon(primaryIcon),
+            color: AGLDemoColors.greenColor,
+            iconSize: 30,
+            padding: EdgeInsets.zero,
+          ),
         ),
       ],
     ),

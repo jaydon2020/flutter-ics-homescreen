@@ -29,6 +29,20 @@ class _TestPhoneDataNotifier extends PhoneDataNotifier {
   );
 }
 
+class _ManyContactsPhoneDataNotifier extends _TestPhoneDataNotifier {
+  @override
+  PhoneDataState build() => super.build().copyWith(
+    contacts: List.generate(
+      25,
+      (index) => PhoneContact(
+        id: '$index',
+        name: 'Contact ${index.toString().padLeft(2, '0')}',
+        numbers: ['+6012$index'],
+      ),
+    ),
+  );
+}
+
 class _TestCallNotifier extends CallStateNotifier {
   @override
   CallState build() => const CallState(
@@ -84,6 +98,7 @@ void main() {
     Widget page, {
     Size size = const Size(1080, 1920),
     bool active = false,
+    bool manyContacts = false,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -92,13 +107,19 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          phoneDataProvider.overrideWith(_TestPhoneDataNotifier.new),
+          phoneDataProvider.overrideWith(
+            manyContacts
+                ? _ManyContactsPhoneDataNotifier.new
+                : _TestPhoneDataNotifier.new,
+          ),
           callStateProvider.overrideWith(
             active ? _ActiveCallNotifier.new : _TestCallNotifier.new,
           ),
         ],
         child: MaterialApp(
-          theme: ThemeData.dark().copyWith(splashFactory: NoSplash.splashFactory),
+          theme: ThemeData.dark().copyWith(
+            splashFactory: NoSplash.splashFactory,
+          ),
           home: Scaffold(body: page),
         ),
       ),
@@ -140,6 +161,20 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('phone-tab-recents')));
     await tester.pump();
     expect(find.byTooltip('Call'), findsOneWidget);
+  });
+
+  testWidgets('Contacts keep a large scrollbar for long phonebooks', (
+    tester,
+  ) async {
+    await show(tester, const CallsPage(), manyContacts: true);
+    await tester.tap(find.byKey(const ValueKey('phone-tab-contacts')));
+    await tester.pump();
+    final scrollbar = tester.widget<RawScrollbar>(find.byType(RawScrollbar));
+    expect(scrollbar.thickness, 28);
+    await tester.drag(find.byType(ListView), const Offset(0, -4000));
+    await tester.pumpAndSettle();
+    expect(find.text('Contact 24'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Active call keypad uses reserved middle region', (tester) async {

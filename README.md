@@ -32,10 +32,10 @@ See [Native phone integration](docs/native_phone_integration.md) for PBAP, MAP,
 PipeWire Telephony, host bootstrap, and AGL cross-build requirements.
 
 After selecting the workspace-automation Flutter SDK, launch the Toyota
-homescreen device through the project helper. It initializes the native
-dependencies and provides the PipeWire library path to the custom runner:
+homescreen device directly. Its custom-device install step must build and copy
+`libpipewire_telephony_native.so` into `.desktop-homescreen/lib`:
 
 ```sh
 source ~/develop/bin/workspace-automation/setup_env.sh
-./tool/run_linux.sh
+flutter run -d desktop-homescreen
 ```

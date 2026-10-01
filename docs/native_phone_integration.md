@@ -18,7 +18,7 @@ The bootstrap command resolves the pinned packages from
 ## AGL cross-build
 
 Build and package both native libraries in the Yocto/SDK recipe. Provide the
-target PipeWire library to the Dart hook with `PWT_PREBUILT_LIBRARY`. Set
+target PipeWire library to the plugin's CMake build with `PWT_PREBUILT_LIBRARY`. Set
 `SKIP_NATIVE_BUILD=1` for the OBEX package and install
 `libbluez_obex_native.so` in the target loader path. Do not use a host-built
 shared object in the target image.

@@ -59,6 +59,7 @@ dependencies:
   dart_mpd: ^0.4.1
   mime: ^2.0.0
   bluez_native: ^0.3.1
+  bluez_media_native: ^0.3.1
   dbus: ^0.7.12
   bluez_obex_native:
     git:
