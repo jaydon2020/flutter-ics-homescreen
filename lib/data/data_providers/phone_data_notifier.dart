@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bluez_obex_native/bluez_obex_native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_notifier.dart';
 import 'package:flutter_ics_homescreen/data/models/phone_models.dart';
+import 'package:flutter_ics_homescreen/data/services/contact_store.dart';
 import 'package:flutter_ics_homescreen/data/services/obex_backend.dart';
 import 'package:flutter_ics_homescreen/data/services/phone_parsers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,19 +14,39 @@ final obexBackendFactoryProvider = Provider<ObexBackend Function()>(
   (ref) => NativeObexBackend.new,
 );
 
+final contactStoreProvider = Provider<ContactStore?>(
+  (ref) => ContactStore.forCurrentUser(),
+);
+
 class PhoneDataNotifier extends Notifier<PhoneDataState> {
   ObexBackend? _backend;
   Directory? _temporaryDirectory;
   StreamSubscription<BlueZObexEvent>? _eventSubscription;
   int _generation = 0;
   bool _refreshingMessages = false;
+  String? _contactsAddress;
 
   @override
   PhoneDataState build() {
     ref.onDispose(() => unawaited(_disposeNative(clearState: false)));
     ref.listen(bluetoothProvider, (previous, next) => _syncBluetooth(next));
-    Future.microtask(() => _syncBluetooth(ref.read(bluetoothProvider)));
+    Future.microtask(() async {
+      await _loadCachedContacts();
+      _syncBluetooth(ref.read(bluetoothProvider));
+    });
     return const PhoneDataState();
+  }
+
+  Future<void> _loadCachedContacts() async {
+    try {
+      final cached = await ref.read(contactStoreProvider)?.load();
+      if (cached == null || _generation != 0) return;
+      _contactsAddress = cached.$1;
+      state = state.copyWith(contacts: cached.$2);
+    } catch (error) {
+      // A damaged cache should not prevent a fresh phonebook transfer.
+      debugPrint('Could not load cached contacts: $error');
+    }
   }
 
   void _syncBluetooth(BluetoothState bluetooth) {
@@ -63,6 +85,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       status: PhoneConnectionStatus.connecting,
       deviceAddress: address,
       deviceName: name,
+      contacts: _contactsAddress == address ? state.contacts : const [],
       busy: true,
     );
     final backend = ref.read(obexBackendFactoryProvider)();
@@ -136,7 +159,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
     if (directory != null && await directory.exists()) {
       await directory.delete(recursive: true);
     }
-    if (clearState) state = const PhoneDataState();
+    if (clearState) state = PhoneDataState(contacts: state.contacts);
   }
 
   Future<void> refreshContacts() async {
@@ -157,7 +180,8 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         },
       );
       await _waitForTransfer(transfer.transferPath);
-      final contacts = parseVCardContacts(await File(target).readAsString());
+      final source = await File(target).readAsString();
+      final contacts = parseVCardContacts(source);
       contacts.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
       );
@@ -166,6 +190,14 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         pbapAvailable: true,
         clearError: true,
       );
+      _contactsAddress = state.deviceAddress;
+      try {
+        if (_contactsAddress != null) {
+          await ref.read(contactStoreProvider)?.save(_contactsAddress!, source);
+        }
+      } catch (error) {
+        debugPrint('Could not save contacts: $error');
+      }
     } catch (error) {
       state = state.copyWith(
         pbapAvailable: false,
