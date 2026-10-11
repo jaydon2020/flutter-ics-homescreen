@@ -1,8 +1,8 @@
 # Native phone integration
 
 The Phone and Messages apps use PipeWire Telephony with automatic D-Bus
-discovery and BlueZ OBEX for PBAP/MAP. Personal data is kept in memory and
-temporary files are deleted whenever the Bluetooth phone disconnects.
+discovery and BlueZ OBEX for PBAP/MAP. Contacts are stored under the user's XDG
+data directory. Temporary transfer files are deleted when the phone disconnects.
 
 ## Host development
 
@@ -12,16 +12,16 @@ dart run tool/bootstrap_native_dependencies.dart
 flutter run -d linux
 ```
 
-The bootstrap command resolves the pinned packages from
-`.dart_tool/package_config.json` and initializes their `sdbus-c++` submodules.
+The bootstrap command resolves `bluez_obex_native` from
+`.dart_tool/package_config.json` and initializes its `sdbus-c++` submodule.
+The PipeWire package build hook initializes its own submodule.
 
 ## AGL cross-build
 
-Build and package both native libraries in the Yocto/SDK recipe. Provide the
-target PipeWire library to the plugin's CMake build with `PWT_PREBUILT_LIBRARY`. Set
-`SKIP_NATIVE_BUILD=1` for the OBEX package and install
-`libbluez_obex_native.so` in the target loader path. Do not use a host-built
-shared object in the target image.
+Build and package both native libraries in the Yocto/SDK recipe. Set
+`SKIP_NATIVE_BUILD=1` for the packages' build hooks and install
+`libpipewire_telephony_native.so` and `libbluez_obex_native.so` in the target
+loader path. Do not use host-built shared objects in the target image.
 
 The application checks the user/session bus first and falls back to the system
 bus. This supports host WirePlumber services started as user units while still

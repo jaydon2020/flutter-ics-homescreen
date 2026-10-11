@@ -68,7 +68,7 @@ dependencies:
   pipewire_telephony_native:
     git:
       url: https://github.com/jaydon2020/pipewire_telephony_native.git
-      ref: 22c66389a1b9b50b3e5d2a56592dcc5cf79afe58
+      ref: 56cee384fd72bd8e5bc16402b73c5cb506ae56b4
 
 dependency_overrides:
   code_assets: 1.1.0

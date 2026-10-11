@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-const _nativePackages = {'bluez_obex_native', 'pipewire_telephony_native'};
+const _nativePackages = {'bluez_obex_native'};
 
 Future<void> main() async {
   final configFile = File('.dart_tool/package_config.json');
