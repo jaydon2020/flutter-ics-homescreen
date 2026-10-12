@@ -11,6 +11,7 @@ void main() async {
   container.read(valClientProvider).connect();
   container.read(radioClientProvider).connect();
   container.read(mpdClientProvider).connect();
+  container.read(bluetoothProvider.notifier).connect();
 
   // Pass the container to ProviderScope and then run the app.
   runApp(

@@ -703,8 +703,6 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   }
 
   Future<void> _setDeviceBlocked(BlueZDevice device, bool blocked) async {
-    // Desktop testing: never leave paired peripherals blocked by BlueZ.
-    blocked = false;
     if (device.blocked == blocked) return;
 
     final arguments = [
@@ -822,5 +820,6 @@ final bluetoothProvider = NotifierProvider<BluetoothNotifier, BluetoothState>(
   BluetoothNotifier.new,
 );
 
-/// Native Bluetooth settings are disabled on the desktop testing branch.
-final nativeBluetoothAvailableProvider = Provider<bool>((_) => false);
+/// Uses the demo backend when native initialization fails.
+final nativeBluetoothAvailableProvider = Provider<bool?>((ref) =>
+    ref.watch(bluetoothProvider.select((state) => state.nativeAvailable)));
