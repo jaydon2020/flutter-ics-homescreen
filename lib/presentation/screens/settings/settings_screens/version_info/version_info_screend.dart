@@ -11,7 +11,7 @@ class VersionInfoPage extends ConsumerWidget {
       if (!data[1].contains('Automotive Grade Linux')) {
         throw 'Non-AGL distribution';
       }
-      return "AGL: " + data[2].split('"')[1];
+      return "AGL: ${data[2].split('"')[1]}";
     } catch (_) {
       return '<AGL version not found>';
     }
@@ -21,7 +21,7 @@ class VersionInfoPage extends ConsumerWidget {
     try {
       final file = File(kernelVersionFilePath);
       final data = file.readAsStringSync().split(" ");
-      return "Kernel: " + data[2];
+      return "Kernel: ${data[2]}";
     } catch (_) {
       return '<Kernel version not found>';
     }

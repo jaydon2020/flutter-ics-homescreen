@@ -152,7 +152,7 @@ class VehicleNotifier extends Notifier<Vehicle> {
               isChildLockActiveRight: !state.isChildLockActiveRight);
           break;
         default:
-          debugPrint("ERROR: Unexpected side value ${side}");
+          debugPrint("ERROR: Unexpected side value $side");
           break;
       }
     } catch (e) {
@@ -181,7 +181,7 @@ class VehicleNotifier extends Notifier<Vehicle> {
           state = state.copyWith(passengerTemperature: value);
           break;
         default:
-          debugPrint("ERROR: Unexpected side value ${side}");
+          debugPrint("ERROR: Unexpected side value $side");
           break;
       }
     } catch (e) {
@@ -259,7 +259,7 @@ class VehicleNotifier extends Notifier<Vehicle> {
               isRecirculationActive: !state.isRecirculationActive);
           break;
         default:
-          debugPrint("ERROR: Unexpected mode value ${mode}");
+          debugPrint("ERROR: Unexpected mode value $mode");
           break;
       }
     } catch (e) {

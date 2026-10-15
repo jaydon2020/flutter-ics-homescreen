@@ -5,13 +5,13 @@ class TemperatureRowWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const TextStyle temperatureTextStyle = const TextStyle(
+    const TextStyle temperatureTextStyle = TextStyle(
       fontFamily: 'BrunoAce',
       color: Colors.white,
       fontSize: 44,
     );
 
-    const TextStyle unitTextStyle = const TextStyle(
+    const TextStyle unitTextStyle = TextStyle(
       fontFamily: 'BrunoAce',
       color: Color(0xFFC1D8FF),
       fontSize: 38,
@@ -110,7 +110,7 @@ class TemperatureWidget extends ConsumerWidget {
         children: [
           const Icon(
             Icons.thermostat_outlined,
-            color: const Color(0xFF2962FF),
+            color: Color(0xFF2962FF),
             size: 48,
           ),
           const SizedBox(width: 4), // Space between icon and text

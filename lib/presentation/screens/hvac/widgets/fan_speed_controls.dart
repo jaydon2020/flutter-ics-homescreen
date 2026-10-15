@@ -113,7 +113,7 @@ class FanSpeedControlsState extends ConsumerState<FanSpeedControls>
                 colors: !isButtonHighlighted
                     ? [
                         AGLDemoColors.neonBlueColor,
-                        AGLDemoColors.neonBlueColor.withOpacity(0.2)
+                        AGLDemoColors.neonBlueColor.withValues(alpha: 0.2)
                       ]
                     : [
                         AGLDemoColors.resolutionBlueColor,
@@ -127,7 +127,7 @@ class FanSpeedControlsState extends ConsumerState<FanSpeedControls>
                         blurRadius: isButtonHighlighted ? 16 : 16,
                         spreadRadius: 0,
                         color: isButtonHighlighted
-                            ? Colors.black.withOpacity(0.5)
+                            ? Colors.black.withValues(alpha: 0.5)
                             : Colors.black)
                   ]
                 : [],
@@ -148,9 +148,9 @@ class FanSpeedControlsState extends ConsumerState<FanSpeedControls>
                   colors: [
                     isButtonHighlighted
                         ? AGLDemoColors.neonBlueColor
-                        : AGLDemoColors.periwinkleColor.withOpacity(0.20),
+                        : AGLDemoColors.periwinkleColor.withValues(alpha: 0.20),
                     isButtonHighlighted
-                        ? AGLDemoColors.neonBlueColor.withOpacity(0.20)
+                        ? AGLDemoColors.neonBlueColor.withValues(alpha: 0.20)
                         : AGLDemoColors.periwinkleColor,
                   ],
                 ),

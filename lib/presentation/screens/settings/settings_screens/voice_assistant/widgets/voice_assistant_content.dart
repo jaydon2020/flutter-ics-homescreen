@@ -1,6 +1,4 @@
 import 'package:flutter_ics_homescreen/export.dart';
-
-import 'package:flutter_ics_homescreen/export.dart';
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/voice_assistant/widgets/voice_assistant_tile.dart';
 
 import '../../../../../../core/utils/helpers.dart';

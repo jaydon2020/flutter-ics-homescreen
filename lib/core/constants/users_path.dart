@@ -1,6 +1,6 @@
 class UsersPath {
-  static const String InfotainmentCurrentUser =
+  static const String infotainmentCurrentUser =
       'Infotainment.Users.selectedUser';
-  static const String InfotainmentUsers =
+  static const String infotainmentUsers =
       'Infotainment.Users';
 }

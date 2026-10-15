@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter_ics_homescreen/core/utils/helpers.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 import 'package:get_ip_address/get_ip_address.dart';
@@ -9,16 +8,15 @@ class WiredPage extends ConsumerWidget {
   static Page<void> page() => const MaterialPage<void>(child: WiredPage());
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(body: WiredScreen(ref: ref));
+    return const Scaffold(body: WiredScreen());
   }
 }
 
-class WiredScreen extends StatefulWidget {
-  WidgetRef ref;
-  WiredScreen({super.key, required this.ref});
+class WiredScreen extends ConsumerStatefulWidget {
+  const WiredScreen({super.key});
 
   @override
-  State<WiredScreen> createState() => _WiredScreenState();
+  WiredScreenState createState() => WiredScreenState();
 }
 
 class Interface {
@@ -28,7 +26,7 @@ class Interface {
   const Interface({required this.deviceName, required this.deviceIP});
 }
 
-class _WiredScreenState extends State<WiredScreen> {
+class WiredScreenState extends ConsumerState<WiredScreen> {
   String publicIP = "N/A";
   List<Interface> interfaces = List<Interface>.empty();
 
@@ -70,7 +68,7 @@ class _WiredScreenState extends State<WiredScreen> {
       });
     } on IpAddressException catch (exception) {
       /// Handle the exception.
-      print(exception.message);
+      debugPrint(exception.message);
     }
   }
 
@@ -82,7 +80,7 @@ class _WiredScreenState extends State<WiredScreen> {
           title: 'Wired',
           hasBackButton: true,
           onPressed: () {
-              widget.ref.read(appProvider.notifier).back();
+              ref.read(appProvider.notifier).back();
           },
         ),
         Expanded(child: ListView.separated(
@@ -90,8 +88,9 @@ class _WiredScreenState extends State<WiredScreen> {
           separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 24),
           itemCount: interfaces.length,
           itemBuilder: (BuildContext context, int index) {
-            if (index >= interfaces.length)
+            if (index >= interfaces.length) {
               return null;
+            }
             final String deviceName = interfaces[index].deviceName;
             bool connected = interfaces[index].deviceIP != null;
             final String deviceIP = interfaces[index].deviceIP ?? "N/A";
@@ -111,7 +110,7 @@ class _WiredScreenState extends State<WiredScreen> {
                   colors: <Color>[
                     Colors.white,
                     AGLDemoColors.neonBlueColor,
-                    AGLDemoColors.neonBlueColor.withOpacity(0.15)
+                    AGLDemoColors.neonBlueColor.withValues(alpha: 0.15)
                   ]),
               ),
               child: Row(

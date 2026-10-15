@@ -29,7 +29,7 @@ class HVACState extends ConsumerState<HVAC> {
         Shadow(
             offset: const Offset(1, 2),
             blurRadius: 3,
-            color: Colors.black.withOpacity(0.7))
+            color: Colors.black.withValues(alpha: 0.7))
       ]);
   TextStyle climateControlSelectedTextStyle = GoogleFonts.raleway(
       color: Colors.white,
@@ -40,7 +40,7 @@ class HVACState extends ConsumerState<HVAC> {
         Shadow(
             offset: const Offset(1, 2),
             blurRadius: 3,
-            color: Colors.black.withOpacity(0.7))
+            color: Colors.black.withValues(alpha: 0.7))
       ]);
 
   @override

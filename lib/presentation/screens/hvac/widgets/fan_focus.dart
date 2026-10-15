@@ -26,11 +26,11 @@ class _FanFocusState extends State<FanFocus> {
             colors: widget.isSelected
                 ? [
                     AGLDemoColors.periwinkleColor,
-                    AGLDemoColors.periwinkleColor.withOpacity(0.25)
+                    AGLDemoColors.periwinkleColor.withValues(alpha: 0.25)
                   ]
                 : [
                     AGLDemoColors.jordyBlueColor,
-                    AGLDemoColors.jordyBlueColor.withOpacity(0.2)
+                    AGLDemoColors.jordyBlueColor.withValues(alpha: 0.2)
                   ]),
         borderRadius: BorderRadius.only(
             topLeft: Radius.circular(widget.focusType == "top_half" ? 16 : 0),
@@ -91,7 +91,7 @@ class _FanFocusState extends State<FanFocus> {
                             Shadow(
                                 offset: Offset(1, widget.isSelected ? 2 : 4),
                                 blurRadius: widget.isSelected ? 3 : 4,
-                                color: Colors.black.withOpacity(0.7))
+                                color: Colors.black.withValues(alpha: 0.7))
                           ],
                         ),
                       ),

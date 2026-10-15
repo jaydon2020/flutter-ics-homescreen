@@ -37,7 +37,7 @@ const TextStyle defaultInactiveDaysTextStyle = const TextStyle(
   fontSize: 14.0,
 );
 final TextStyle defaultInactiveWeekendTextStyle = TextStyle(
-  color: Colors.pinkAccent.withOpacity(0.6),
+  color: Colors.pinkAccent.withValues(alpha: 0.6),
   fontSize: 14.0,
 );
 final Widget defaultMarkedDateWidget = Container(

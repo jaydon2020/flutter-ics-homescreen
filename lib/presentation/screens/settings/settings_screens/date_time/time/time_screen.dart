@@ -261,18 +261,18 @@ class TimeScreenWidgetState extends ConsumerState<TimeScreenWidget> {
                   decoration: BoxDecoration(
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: 0.7),
                             blurRadius: 1.5,
                             offset: const Offset(1, 2))
                       ],
                       gradient: LinearGradient(colors: [
                         AGLDemoColors.resolutionBlueColor,
-                        AGLDemoColors.neonBlueColor.withOpacity(0.15),
+                        AGLDemoColors.neonBlueColor.withValues(alpha: 0.15),
                       ]),
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
                           color:
-                              AGLDemoColors.neonBlueColor.withOpacity(0.20))),
+                              AGLDemoColors.neonBlueColor.withValues(alpha: 0.20))),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 10),
                     child: Text(
@@ -308,18 +308,18 @@ class TimeScreenWidgetState extends ConsumerState<TimeScreenWidget> {
                   decoration: BoxDecoration(
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: 0.7),
                             blurRadius: 1.5,
                             offset: const Offset(1, 2))
                       ],
                       gradient: LinearGradient(colors: [
                         AGLDemoColors.resolutionBlueColor,
-                        AGLDemoColors.neonBlueColor.withOpacity(0.15),
+                        AGLDemoColors.neonBlueColor.withValues(alpha: 0.15),
                       ]),
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
                           color:
-                              AGLDemoColors.neonBlueColor.withOpacity(0.20))),
+                              AGLDemoColors.neonBlueColor.withValues(alpha: 0.20))),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 10),
                     child: Text(
@@ -488,7 +488,7 @@ class _TimeTextFieldState extends State<TimeTextField> {
             decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(vertical: 23),
                 filled: true,
-                fillColor: AGLDemoColors.blueGlowFillColor.withOpacity(0.1)),
+                fillColor: AGLDemoColors.blueGlowFillColor.withValues(alpha: 0.1)),
             controller: controller,
             textAlign: TextAlign.center,
             inputFormatters: [

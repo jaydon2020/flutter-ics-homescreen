@@ -31,17 +31,17 @@ class _ClimateControlsState extends State<ClimateControls> {
                     widget.isSelected ? 0 : 1, widget.isSelected ? 4 : 2),
                 blurRadius: widget.isSelected ? 4 : 3,
                 spreadRadius: 0,
-                color: Colors.black.withOpacity(widget.isSelected ? 0.25 : 0.7))
+                color: Colors.black.withValues(alpha: widget.isSelected ? 0.25 : 0.7))
           ],
           gradient: LinearGradient(
               colors: widget.isSelected
                   ? [
                       AGLDemoColors.periwinkleColor,
-                      AGLDemoColors.periwinkleColor.withOpacity(0.25)
+                      AGLDemoColors.periwinkleColor.withValues(alpha: 0.25)
                     ]
                   : [
                       AGLDemoColors.neonBlueColor,
-                      AGLDemoColors.neonBlueColor.withOpacity(0.2)
+                      AGLDemoColors.neonBlueColor.withValues(alpha: 0.2)
                     ],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight),
@@ -57,7 +57,7 @@ class _ClimateControlsState extends State<ClimateControls> {
                   blurRadius: widget.isSelected ? 4 : 3,
                   spreadRadius: 0,
                   color:
-                      Colors.black.withOpacity(widget.isSelected ? 0.25 : 0.7))
+                      Colors.black.withValues(alpha: widget.isSelected ? 0.25 : 0.7))
             ],
             color: widget.isSelected
                 ? AGLDemoColors.neonBlueColor

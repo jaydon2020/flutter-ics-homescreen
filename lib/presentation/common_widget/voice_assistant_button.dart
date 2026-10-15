@@ -180,7 +180,7 @@ class _VoiceAssistantButtonState extends ConsumerState<VoiceAssistantButton> wit
     _showOverlay = ref.watch(voiceAssistantStateProvider.select((value) => value.showOverLay));
 
     if(_showOverlay){
-      WidgetsBinding.instance!.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         if(overlayLock == 0){
           overlayLock = 1;
           _showAssistantPopup(context);

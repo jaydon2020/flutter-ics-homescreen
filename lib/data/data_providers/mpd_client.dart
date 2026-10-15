@@ -270,7 +270,7 @@ class MpdClient {
     bool first = true;
     do {
       //debugPrint("Reading, offset = $offset, size = $size");
-      api.MpdImage? chunk = null;
+      api.MpdImage? chunk;
       try {
         chunk = await client.readpicture(file, offset);
       } catch (e) {

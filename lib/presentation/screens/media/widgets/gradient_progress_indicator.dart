@@ -29,7 +29,7 @@ class GradientProgressIndicator extends StatelessWidget {
             margin: const EdgeInsets.all(1),
             decoration: BoxDecoration(
               border: Border.all(
-                  color: AGLDemoColors.neonBlueColor.withOpacity(0.5),
+                  color: AGLDemoColors.neonBlueColor.withValues(alpha: 0.5),
                   width: 1),
               gradient: gradient,
               borderRadius:
@@ -74,7 +74,7 @@ class GradientProgressIndicator extends StatelessWidget {
             decoration: BoxDecoration(
               color: backgroundColor,
               border: Border.all(
-                  color: AGLDemoColors.neonBlueColor.withOpacity(0.5),
+                  color: AGLDemoColors.neonBlueColor.withValues(alpha: 0.5),
                   width: 1),
               borderRadius: const BorderRadius.all(Radius.circular(2)),
             ),

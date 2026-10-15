@@ -1,4 +1,3 @@
-import 'package:dart_mpd/dart_mpd.dart';
 import 'package:flutter_ics_homescreen/core/utils/helpers.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_media_notifier.dart';
 import 'package:flutter_ics_homescreen/export.dart';

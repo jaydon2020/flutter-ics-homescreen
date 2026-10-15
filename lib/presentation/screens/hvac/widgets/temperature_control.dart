@@ -121,11 +121,11 @@ class TemperatureControlState extends ConsumerState<TemperatureControl> {
         //             BoxShadow(
         //                 offset: const Offset(1, 2),
         //                 blurRadius: 3,
-        //                 color: Colors.black.withOpacity(0.7)),
+        //                 color: Colors.black.withValues(alpha: 0.7)),
         //           ],
         //           gradient: LinearGradient(colors: [
         //             AGLDemoColors.neonBlueColor,
-        //             AGLDemoColors.neonBlueColor.withOpacity(0.20)
+        //             AGLDemoColors.neonBlueColor.withValues(alpha: 0.20)
         //           ]),
         //           borderRadius: const BorderRadius.only(
         //               topLeft: Radius.circular(100),
@@ -157,7 +157,7 @@ class TemperatureControlState extends ConsumerState<TemperatureControl> {
         //                   BoxShadow(
         //                       offset: const Offset(1, 2),
         //                       blurRadius: 3,
-        //                       color: Colors.black.withOpacity(0.7)),
+        //                       color: Colors.black.withValues(alpha: 0.7)),
         //                 ],
         //               ),
         //             ),
@@ -223,11 +223,11 @@ class TemperatureControlState extends ConsumerState<TemperatureControl> {
         //                 BoxShadow(
         //                     offset: const Offset(1, 2),
         //                     blurRadius: 3,
-        //                     color: Colors.black.withOpacity(0.7)),
+        //                     color: Colors.black.withValues(alpha: 0.7)),
         //               ],
         //               gradient: LinearGradient(colors: [
         //                 AGLDemoColors.neonBlueColor,
-        //                 AGLDemoColors.neonBlueColor.withOpacity(0.20)
+        //                 AGLDemoColors.neonBlueColor.withValues(alpha: 0.20)
         //               ]),
         //               border: Border.all(color: Colors.white12),
         //               borderRadius: const BorderRadius.only(
@@ -260,7 +260,7 @@ class TemperatureControlState extends ConsumerState<TemperatureControl> {
         //                       BoxShadow(
         //                           offset: const Offset(1, 2),
         //                           blurRadius: 3,
-        //                           color: Colors.black.withOpacity(0.7)),
+        //                           color: Colors.black.withValues(alpha: 0.7)),
         //                     ],
         //                   ),
         //                 ),

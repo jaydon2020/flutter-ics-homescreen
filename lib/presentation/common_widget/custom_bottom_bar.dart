@@ -55,7 +55,7 @@ class CustomBottomBarState extends ConsumerState<CustomBottomBar> {
 
   @override
   Widget build(BuildContext context) {
-    var selectedNav = ref.watch(selectedProvider.notifier);
+    var selectedNav = ref.watch(selectedProvider);
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Row(
@@ -133,7 +133,7 @@ class CustomBottomBarState extends ConsumerState<CustomBottomBar> {
                                         shadows: [
                                           Shadow(
                                               color:
-                                                  Colors.black.withOpacity(0.7),
+                                                  Colors.black.withValues(alpha: 0.7),
                                               offset: Offset(
                                                   1,
                                                   e.title == selectedNav

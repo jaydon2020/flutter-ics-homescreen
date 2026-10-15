@@ -225,18 +225,18 @@ class DateScreenWidgetState extends ConsumerState<DateScreenWidget> {
                   decoration: BoxDecoration(
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: 0.7),
                             blurRadius: 1.5,
                             offset: const Offset(1, 2))
                       ],
                       gradient: LinearGradient(colors: [
                         AGLDemoColors.resolutionBlueColor,
-                        AGLDemoColors.neonBlueColor.withOpacity(0.15),
+                        AGLDemoColors.neonBlueColor.withValues(alpha: 0.15),
                       ]),
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
                           color:
-                              AGLDemoColors.neonBlueColor.withOpacity(0.20))),
+                              AGLDemoColors.neonBlueColor.withValues(alpha: 0.20))),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Text(
@@ -272,18 +272,18 @@ class DateScreenWidgetState extends ConsumerState<DateScreenWidget> {
                   decoration: BoxDecoration(
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: 0.7),
                             blurRadius: 1.5,
                             offset: const Offset(1, 2))
                       ],
                       gradient: LinearGradient(colors: [
                         AGLDemoColors.resolutionBlueColor,
-                        AGLDemoColors.neonBlueColor.withOpacity(0.15),
+                        AGLDemoColors.neonBlueColor.withValues(alpha: 0.15),
                       ]),
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
                           color:
-                              AGLDemoColors.neonBlueColor.withOpacity(0.20))),
+                              AGLDemoColors.neonBlueColor.withValues(alpha: 0.20))),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Text(

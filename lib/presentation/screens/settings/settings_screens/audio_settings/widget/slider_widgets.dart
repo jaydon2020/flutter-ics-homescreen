@@ -86,7 +86,7 @@ class CustomBalanceState extends ConsumerState<CustomBalanceSlider> {
                 width: 584,
                 child: SliderTheme(
                   data: SliderThemeData(
-                    showValueIndicator: ShowValueIndicator.always,
+                    showValueIndicator: ShowValueIndicator.onDrag,
                     trackShape: CustomRoundedRectSliderTrackShape(
                         sliderVal: balanceValue, isFrontRear: true),
                     activeTickMarkColor: Colors.transparent,
@@ -229,7 +229,7 @@ class CustomFaderState extends ConsumerState<CustomFaderSlider> {
                 width: 584,
                 child: SliderTheme(
                   data: SliderThemeData(
-                    showValueIndicator: ShowValueIndicator.always,
+                    showValueIndicator: ShowValueIndicator.onDrag,
                     trackShape: CustomRoundedRectSliderTrackShape(
                         sliderVal: faderValue, isFrontRear: true),
                     activeTickMarkColor: Colors.transparent,
@@ -367,7 +367,7 @@ class CustomTrebleSliderState extends ConsumerState<CustomTrebleSlider> {
                 width: 584,
                 child: SliderTheme(
                   data: SliderThemeData(
-                    showValueIndicator: ShowValueIndicator.always,
+                    showValueIndicator: ShowValueIndicator.onDrag,
                     trackShape: CustomRoundedRectSliderTrackShape(
                         sliderVal: trebleValue),
                     activeTickMarkColor: Colors.transparent,
@@ -505,7 +505,7 @@ class CustomBassSliderState extends ConsumerState<CustomBassSlider> {
                 width: 584,
                 child: SliderTheme(
                   data: SliderThemeData(
-                    showValueIndicator: ShowValueIndicator.always,
+                    showValueIndicator: ShowValueIndicator.onDrag,
                     trackShape:
                         CustomRoundedRectSliderTrackShape(sliderVal: bassValue),
                     activeTickMarkColor: Colors.transparent,

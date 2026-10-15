@@ -39,7 +39,7 @@ class StorageClient {
       var response = await stub.destroyDB(api.DestroyArguments());
       return response;
     } catch (e) {
-      print(e);
+      debugPrint('$e');
       rethrow;
     }
   }
@@ -49,7 +49,7 @@ class StorageClient {
       var response = await stub.write(keyValue);
       return response;
     } catch (e) {
-      print(e);
+      debugPrint('$e');
       rethrow;
     }
   }
@@ -59,7 +59,7 @@ class StorageClient {
       var response = await stub.read(key);
       return response;
     } catch (e) {
-      print(e);
+      debugPrint('$e');
       rethrow;
     }
   }
@@ -69,7 +69,7 @@ class StorageClient {
       var response = await stub.delete(key);
       return response;
     } catch (e) {
-      print(e);
+      debugPrint('$e');
       rethrow;
     }
   }
@@ -79,7 +79,7 @@ class StorageClient {
       var response = await stub.search(key);
       return response;
     } catch (e) {
-      print(e);
+      debugPrint('$e');
       rethrow;
     }
   }
@@ -89,7 +89,7 @@ class StorageClient {
       var response = await stub.deleteNodes(key);
       return response;
     } catch (e) {
-      print(e);
+      debugPrint('$e');
       rethrow;
     }
   }
@@ -99,7 +99,7 @@ class StorageClient {
       var response = await stub.listNodes(subtreeInfo);
       return response;
     } catch (e) {
-      print(e);
+      debugPrint('$e');
       rethrow;
     }
   }

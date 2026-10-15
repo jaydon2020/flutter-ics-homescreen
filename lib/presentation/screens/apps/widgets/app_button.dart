@@ -62,7 +62,7 @@ class _AppButtonState extends State<AppButton> {
                       }
                       filepath = "app-generic.svg";
                     }
-                    return SvgPicture.asset("assets/${filepath}");
+                    return SvgPicture.asset("assets/$filepath");
                   },
                 ),
               ),

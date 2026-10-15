@@ -16,12 +16,12 @@ class CustomTopBar extends ConsumerStatefulWidget
 class CustomTopBarState extends ConsumerState<CustomTopBar> {
   @override
   Widget build(BuildContext context) {
-    final singnalsConnection =
-        ref.watch(signalsProvider.select((sinals) => sinals));
+    final signalsConnection =
+        ref.watch(signalsProvider.select((signals) => signals));
     final userName =
         ref.watch(usersProvider.select((user) => user.selectedUser.name));
     DateFormat dateFormat = DateFormat('hh:mm a');
-    final currentime = ref.watch(currentTimeProvider);
+    final currentTime = ref.watch(currentTimeProvider);
 
     return AppBar(
       elevation: 0,
@@ -38,7 +38,7 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
                 children: [
                   RichText(
                     text: TextSpan(
-                      text: dateFormat.format(currentime),
+                      text: dateFormat.format(currentTime),
                       style: const TextStyle(color: Colors.white, fontSize: 26),
                       children: <InlineSpan>[
                         const WidgetSpan(
@@ -69,7 +69,7 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
               child: Wrap(
                 children: [
                   Icon(
-                    singnalsConnection.isBluetoothConnected
+                    signalsConnection.isBluetoothConnected
                         ? Icons.bluetooth
                         : Icons.bluetooth_disabled,
                     size: 24,
@@ -85,7 +85,7 @@ class CustomTopBarState extends ConsumerState<CustomTopBar> {
                     width: 24,
                   ),
                   Icon(
-                    singnalsConnection.isWifiConnected
+                    signalsConnection.isWifiConnected
                         ? Icons.wifi
                         : Icons.wifi_off,
                     size: 24,

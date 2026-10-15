@@ -26,14 +26,14 @@ class _HourlyForecastState extends State<HourlyForecast> {
       padding: const EdgeInsets.all(1),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [
-          AGLDemoColors.periwinkleColor.withOpacity(0.2),
+          AGLDemoColors.periwinkleColor.withValues(alpha: 0.2),
           AGLDemoColors.periwinkleColor
         ]),
         boxShadow: [
           BoxShadow(
               offset: const Offset(1, 2),
               blurRadius: 16,
-              color: Colors.black.withOpacity(0.5))
+              color: Colors.black.withValues(alpha: 0.5))
         ],
         borderRadius: BorderRadius.circular(40),
         //  border: Border.all(color: Colors.white12),
@@ -47,7 +47,7 @@ class _HourlyForecastState extends State<HourlyForecast> {
           //   BoxShadow(
           //       offset: const Offset(1, 2),
           //       blurRadius: 16,
-          //       color: Colors.black.withOpacity(0.5))
+          //       color: Colors.black.withValues(alpha: 0.5))
           // ],
           gradient: const RadialGradient(
             //center: Alignment(0.7, -0.6), // near the top right

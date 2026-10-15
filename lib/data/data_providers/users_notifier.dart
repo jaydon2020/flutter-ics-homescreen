@@ -7,13 +7,13 @@ import '../models/user.dart';
 import 'package:protos/storage-api.dart' as storage_api;
 
 class UsersNotifier extends Notifier<Users> {
-  @override
   final List<User> _users = [
     const User(id: '1', name: 'Heather'),
     const User(id: '2', name: 'George'),
     const User(id: '3', name: 'Riley'),
   ];
 
+  @override
   Users build() {
     // Initialize default state.
     state = Users.initial();
@@ -25,17 +25,17 @@ class UsersNotifier extends Notifier<Users> {
     try {
       // Access users branch.
       final searchResponseUsers = await storageClient
-          .search(storage_api.Key(key: UsersPath.InfotainmentUsers));
+          .search(storage_api.Key(key: UsersPath.infotainmentUsers));
       if (searchResponseUsers.result.isEmpty) {
         // Add default users if no users are inside the storage API.
         debugPrint("Adding default demo user profiles");
         state = state.copyWith(users: _users);
         for (int i = 0; i < _users.length; i++ ) {
           await storageClient.write(storage_api.KeyValue(
-              key: '${UsersPath.InfotainmentUsers}.${_users[i].id}.id',
+              key: '${UsersPath.infotainmentUsers}.${_users[i].id}.id',
               value: _users[i].id));
           await storageClient.write(storage_api.KeyValue(
-              key: '${UsersPath.InfotainmentUsers}.${_users[i].id}.name',
+              key: '${UsersPath.infotainmentUsers}.${_users[i].id}.name',
               value: _users[i].name));
         }
         await selectUser(_users[0].id);
@@ -53,18 +53,18 @@ class UsersNotifier extends Notifier<Users> {
         // Extract names corresponding to ids.
         for (var id in idList) {
           var readResponse = await storageClient.read(
-              storage_api.Key(key: '${UsersPath.InfotainmentUsers}.$id.name'));
+              storage_api.Key(key: '${UsersPath.infotainmentUsers}.$id.name'));
           users.insert(0, User(id: id, name: readResponse.result));
         }
         // Extract id of selected user.
         final readResponseSelectedUser = await storageClient
-            .read(storage_api.Key(key: UsersPath.InfotainmentCurrentUser));
+            .read(storage_api.Key(key: UsersPath.infotainmentCurrentUser));
         User selectedUser;
         final userCurrentId = readResponseSelectedUser.result;
         // Extract name of selected user.
         final readResponseCurrentUserName = await storageClient.read(
             storage_api.Key(
-                key: '${UsersPath.InfotainmentUsers}.$userCurrentId.name'));
+                key: '${UsersPath.infotainmentUsers}.$userCurrentId.name'));
         final userCurrentName = readResponseCurrentUserName.result;
         selectedUser = User(id: userCurrentId, name: userCurrentName);
         state = Users(users: users, selectedUser: selectedUser);
@@ -83,7 +83,7 @@ class UsersNotifier extends Notifier<Users> {
     if (ref.read(storageClientConnectedProvider)) {
       try {
         await ref.read(storageClientProvider).write(storage_api.KeyValue(
-          key: UsersPath.InfotainmentCurrentUser,
+          key: UsersPath.infotainmentCurrentUser,
           value: userId,
         ));
       } catch (e) {
@@ -108,7 +108,7 @@ class UsersNotifier extends Notifier<Users> {
       // Write to API to change selected user.
       if (ref.read(storageClientConnectedProvider)) {
         await storageClient.write(storage_api.KeyValue(
-            key: UsersPath.InfotainmentCurrentUser, value: state.users.first.id));
+            key: UsersPath.infotainmentCurrentUser, value: state.users.first.id));
       }
     }
     if (state.users.isEmpty) {
@@ -116,7 +116,7 @@ class UsersNotifier extends Notifier<Users> {
       // Write to API to change selected user.
       if (ref.read(storageClientConnectedProvider)) {
         await storageClient.write(storage_api.KeyValue(
-            key: UsersPath.InfotainmentCurrentUser, value: '0'));
+            key: UsersPath.infotainmentCurrentUser, value: '0'));
       }
     }
     // Delete from storage API.
@@ -149,9 +149,9 @@ class UsersNotifier extends Notifier<Users> {
       final storageClient = ref.read(storageClientProvider);
       try {
         await storageClient.write(storage_api.KeyValue(
-            key: '${UsersPath.InfotainmentUsers}.$id.name', value: userName));
+            key: '${UsersPath.infotainmentUsers}.$id.name', value: userName));
         await storageClient.write(storage_api.KeyValue(
-            key: '${UsersPath.InfotainmentUsers}.$id.id', value: id));
+            key: '${UsersPath.infotainmentUsers}.$id.id', value: id));
       } catch (e) {
         debugPrint('Error adding user with id $id: $e');
       }

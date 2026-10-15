@@ -49,7 +49,7 @@ class KuksaConfig {
 
 KuksaConfig readKuksaConfig(String configFilePath, KuksaConfig defaultConfig) {
   try {
-    print("Reading KUKSA configuration ${configFilePath}");
+    print("Reading KUKSA configuration $configFilePath");
     final configFile = File(configFilePath);
     String content = configFile.readAsStringSync();
     final configMap = TomlDocument.parse(content).toMap();
@@ -234,7 +234,7 @@ class AppConfig {
       // Read global configuration
       var configFilePath = KuksaConfig.globalConfigFilePath;
       if (configHome != null) {
-        configFilePath = configHome + "/AGL/kuksa.toml";
+        configFilePath = "$configHome/AGL/kuksa.toml";
       }
       var config = defaultConfig;
       config = readKuksaConfig(configFilePath, config);
@@ -243,7 +243,7 @@ class AppConfig {
       configFilePath = KuksaConfig.appConfigFilePath;
       if (configHome != null) {
         configFilePath =
-            configHome + "/AGL/flutter-cluster-dashboard/kuksa.toml";
+            "$configHome/AGL/flutter-cluster-dashboard/kuksa.toml";
       }
       config = readKuksaConfig(configFilePath, config);
       return config;

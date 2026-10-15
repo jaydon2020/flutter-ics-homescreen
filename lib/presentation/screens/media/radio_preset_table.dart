@@ -118,12 +118,12 @@ class _RadioPresetTableState extends ConsumerState<RadioPresetTable> {
                                                 ? [
                                                     AGLDemoColors.neonBlueColor,
                                                     AGLDemoColors.neonBlueColor
-                                                        .withOpacity(0.15)
+                                                        .withValues(alpha: 0.15)
                                                   ]
                                                 : [
                                                     Colors.black,
                                                     Colors.black
-                                                        .withOpacity(0.20)
+                                                        .withValues(alpha: 0.20)
                                                   ])),
                                     child: InkWell(
                                       onTap: () {

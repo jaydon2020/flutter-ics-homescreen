@@ -112,24 +112,24 @@ class _PlayListTableState extends ConsumerState<PlayListTable> {
                               border: Border(
                                 left:
                                     selectedPosition == playlist[index].position
-                                    ? const BorderSide(
-                                        color: Colors.white,
-                                        width: 4,
-                                      )
-                                    : BorderSide.none,
+                                        ? const BorderSide(
+                                            color: Colors.white,
+                                            width: 4,
+                                          )
+                                        : BorderSide.none,
                               ),
                               gradient: LinearGradient(
-                                colors:
-                                    selectedPosition == playlist[index].position
+                                colors: selectedPosition ==
+                                        playlist[index].position
                                     ? [
                                         AGLDemoColors.neonBlueColor,
-                                        AGLDemoColors.neonBlueColor.withOpacity(
-                                          0.15,
+                                        AGLDemoColors.neonBlueColor.withValues(
+                                          alpha: 0.15,
                                         ),
                                       ]
                                     : [
                                         Colors.black,
-                                        Colors.black.withOpacity(0.20),
+                                        Colors.black.withValues(alpha: 0.20),
                                       ],
                               ),
                             ),

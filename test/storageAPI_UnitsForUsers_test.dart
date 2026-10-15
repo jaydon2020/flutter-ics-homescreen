@@ -1,9 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:protos/storage-api.dart' as storage_api;
+import 'package:protos/storage-api.dart' as api;
 import 'package:flutter_ics_homescreen/export.dart';
 
 import 'package:flutter_ics_homescreen/data/data_providers/storage_client.dart';
-import 'package:flutter_ics_homescreen/data/data_providers/initialize_settings.dart';
 
 // Mock implementation of Ref if necessary.
 class MockRef extends Ref {
@@ -15,7 +14,7 @@ void main() {
   late StorageClient storageClient;
   late ProviderContainer container;
   
-  setUp(() {
+  setUp(() async {
     storageClient = StorageClient(
       config: StorageConfig.defaultConfig(),
       ref: MockRef(),
@@ -32,7 +31,7 @@ void main() {
     // Access state.
     var userState = container.read(usersProvider);
     final userId = userState.users[0].id;
-    final searchResponse = await storageClient.read(storage_api.Key(key: '${UsersPath.InfotainmentUsers}.$userId.name'));
+    final searchResponse = await storageClient.read(api.Key(key: '${UsersPath.infotainmentUsers}.$userId.name'));
     expect(searchResponse.success, isTrue);
     expect(searchResponse.result, 'Mark');
     await storageClient.destroyDB();
@@ -49,7 +48,7 @@ void main() {
 
     // Remove User.
     await userClient.removeUser(markId);
-    final searchResponse = await storageClient.search(storage_api.Key(key: markId));
+    final searchResponse = await storageClient.search(api.Key(key: markId));
     expect(searchResponse.success, isTrue);
     expect(searchResponse.result, []);
     await storageClient.destroyDB();
@@ -66,7 +65,7 @@ void main() {
     final markId = userState.users[1].id;
     await userClient.selectUser(markId);
 
-    final readResponseAfterSelectUser = await storageClient.read(storage_api.Key(key: UsersPath.InfotainmentCurrentUser));
+    final readResponseAfterSelectUser = await storageClient.read(api.Key(key: UsersPath.infotainmentCurrentUser));
     expect(readResponseAfterSelectUser.success, isTrue);
     expect(readResponseAfterSelectUser.result, markId);
     await storageClient.destroyDB();
@@ -79,7 +78,7 @@ void main() {
     var userState = container.read(usersProvider);
     final selectedId = userState.selectedUser.id;
 
-    final readResponse = await storageClient.read(storage_api.Key(key: UsersPath.InfotainmentCurrentUser));
+    final readResponse = await storageClient.read(api.Key(key: UsersPath.infotainmentCurrentUser));
     expect(readResponse.success, isFalse);
     expect(selectedId, '0');
     await storageClient.destroyDB();
@@ -99,7 +98,7 @@ void main() {
 
     await unitsClient.setDistanceUnit(DistanceUnit.miles);
 
-    final readResponse = await storageClient.read(storage_api.Key(key: VSSPath.vehicleHmiDistanceUnit, namespace: markId));
+    final readResponse = await storageClient.read(api.Key(key: VSSPath.vehicleHmiDistanceUnit, namespace: markId));
     expect(readResponse.success, isTrue);
     expect(readResponse.result, 'MILES');
     await storageClient.destroyDB();
@@ -140,7 +139,7 @@ void main() {
     expect(unitState.distanceUnit, DistanceUnit.kilometers);
 
     // Load state.
-    await initializeSettings(container);
+    storageClient.connect();
     
     // Check success.
     unitState = container.read(unitStateProvider);
@@ -188,7 +187,7 @@ void main() {
     expect(unitState.distanceUnit, DistanceUnit.kilometers);
 
     // Load state.
-    await initializeSettings(container);
+    storageClient.connect();
     
     // Check success.
     unitState = container.read(unitStateProvider);
@@ -204,10 +203,10 @@ void main() {
 
   test('loadsettings: initialize, add no user, setDistanceUnit, kill state, inizialize', () async {
     await storageClient.destroyDB();
-    await initializeSettings(container);
+    storageClient.connect();
 
     var userState = container.read(usersProvider);
-    var readResponse = await storageClient.read(storage_api.Key(key: '${UsersPath.InfotainmentUsers}.1.name'));
+    var readResponse = await storageClient.read(api.Key(key: '${UsersPath.infotainmentUsers}.1.name'));
     expect(readResponse.result, 'Heather');
 
     final unitsClient = container.read(unitStateProvider.notifier);
@@ -235,7 +234,7 @@ void main() {
     expect(unitState.distanceUnit, DistanceUnit.kilometers);
 
     // Load state.
-    await initializeSettings(container);
+    storageClient.connect();
     
     // Check success.
     unitState = container.read(unitStateProvider);
@@ -274,11 +273,11 @@ void main() {
     expect(unitState.temperatureUnit, TemperatureUnit.fahrenheit);
     expect(unitState.pressureUnit, PressureUnit.psi);
   
-    var readResponse = await storageClient.read(storage_api.Key(key: VSSPath.vehicleHmiDistanceUnit, namespace: claraId));
+    var readResponse = await storageClient.read(api.Key(key: VSSPath.vehicleHmiDistanceUnit, namespace: claraId));
     expect(readResponse.result, 'MILES');
-    readResponse = await storageClient.read(storage_api.Key(key: VSSPath.vehicleHmiTemperatureUnit, namespace: claraId));
+    readResponse = await storageClient.read(api.Key(key: VSSPath.vehicleHmiTemperatureUnit, namespace: claraId));
     expect(readResponse.result, 'F');
-    readResponse = await storageClient.read(storage_api.Key(key: VSSPath. vehicleHmiPressureUnit, namespace: claraId));
+    readResponse = await storageClient.read(api.Key(key: VSSPath. vehicleHmiPressureUnit, namespace: claraId));
     expect(readResponse.result, 'PSI');
   
     await storageClient.destroyDB();
