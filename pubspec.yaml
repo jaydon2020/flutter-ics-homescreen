@@ -41,14 +41,14 @@ dependencies:
   riverpod: ^2.5.1
   flutter_riverpod: ^2.5.1
   flutter_svg: ^2.0.10+1
-  google_fonts: ^6.2.1
+  google_fonts: ^9.0.0
   flutter_analog_clock: ^1.0.3
   uuid: ^4.5.0
   intl: ^0.20.2
   network_info_plus: ^6.0.1
   toml: "^0.16.0"
   gradient_borders: ^1.0.1
-  lottie: ^3.1.2
+  lottie: 3.5.1
   device_preview: ^1.2.0
   rive: ^0.13.13
   new_virtual_keyboard: ^0.1.4
@@ -58,12 +58,12 @@ dependencies:
     path: ./packages/flutter_calendar_carousel
   dart_mpd: ^0.4.1
   mime: ^2.0.0
-  bluez_native: ^0.3.1
+  bluez_native: ^0.3.2
   bluez_media_native: ^0.3.1
 
 dependency_overrides:
-  code_assets: 1.1.0
-  hooks: 2.0.2
+  code_assets: ^2.1.0
+  hooks: ^2.1.0
 
 dev_dependencies:
   flutter_test:
