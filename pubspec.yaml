@@ -64,7 +64,7 @@ dependencies:
   bluez_obex_native:
     git:
       url: https://github.com/jaydon2020/bluez_obex_native.git
-      ref: 5f8a36d503a75e3e1b555b510a8debfee46d4816
+      ref: a6d99a4ee5689dce1d531d5b49970200ab10fef6
   pipewire_telephony_native:
     git:
       url: https://github.com/jaydon2020/pipewire_telephony_native.git
