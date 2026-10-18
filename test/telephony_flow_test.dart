@@ -15,8 +15,8 @@ import 'phone_test_support.dart';
 class _ContactsNotifier extends PhoneDataNotifier {
   @override
   PhoneDataState build() => const PhoneDataState();
-  void load(List<PhoneContact> contacts) =>
-      state = state.copyWith(contacts: contacts);
+  void load(String address, List<PhoneContact> contacts) =>
+      state = state.copyWith(contacts: contacts, contactsAddress: address);
 }
 
 class _Telephony implements TelephonyBackend {
@@ -178,10 +178,56 @@ void main() {
         ),
       );
       expect(state().name, '+6012345');
-      (container.read(phoneDataProvider.notifier) as _ContactsNotifier).load([
-        const PhoneContact(id: '1', name: 'Aisha', numbers: ['+60 12345']),
-      ]);
+      (container.read(phoneDataProvider.notifier) as _ContactsNotifier).load(
+        'AA:BB',
+        [
+          const PhoneContact(id: '1', name: 'Aisha', numbers: ['+60 12345']),
+        ],
+      );
       expect(state().name, 'Aisha');
+    },
+  );
+
+  test(
+    'caller names only come from the connected phone contact owner',
+    () async {
+      final backend = _Telephony('CC:DD');
+      backends.add(backend);
+      publish('CC:DD');
+      await waitUntil(() => state().connected);
+      final contacts =
+          container.read(phoneDataProvider.notifier) as _ContactsNotifier;
+      contacts.load('AA:BB', [
+        const PhoneContact(
+          id: '1',
+          name: 'Aisha on phone A',
+          numbers: ['+6012345'],
+        ),
+      ]);
+      backend.emit(
+        const TelephonySnapshot(
+          clientState: PipeWireTelephonyClientState.ready,
+          gatewayAddress: 'CC:DD',
+          calls: [
+            TelephonyCallInfo(
+              id: '/call/1',
+              number: '+6012345',
+              name: '',
+              state: PipeWireCallState.incoming,
+              multiparty: false,
+            ),
+          ],
+        ),
+      );
+      expect(state().name, '+6012345');
+      contacts.load('CC:DD', [
+        const PhoneContact(
+          id: '1',
+          name: 'Daniel on phone B',
+          numbers: ['+6012345'],
+        ),
+      ]);
+      expect(state().name, 'Daniel on phone B');
     },
   );
 

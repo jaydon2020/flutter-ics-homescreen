@@ -74,8 +74,9 @@ void main() {
   tearDown(() async {
     container.dispose();
     await waitUntil(() => opened.every((backend) => backend.closed));
-    await store
-        .load(); // Wait for disk writes before removing the test directory.
+    await store.load(
+      'AA:BB',
+    ); // Wait for disk writes before removing the test directory.
     await directory.delete(recursive: true);
   });
 
@@ -302,6 +303,57 @@ void main() {
     expect((await store.load('AA:BB'))?.contacts.single.name, 'Aisha');
   });
 
+  test(
+    'shows no contacts without a selected phone, even when caches exist',
+    () async {
+      await store.save('AA:BB', TestObexBackend().source);
+      await store.save(
+        'CC:DD',
+        'BEGIN:VCARD\r\nFN:Daniel\r\nTEL:+6099999\r\nEND:VCARD\r\n',
+      );
+      container.dispose();
+      createContainer();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(state().contacts, isEmpty);
+      expect(state().contactsAddress, isNull);
+      publish('AA:BB', pending: true);
+      await waitUntil(() => state().contacts.isNotEmpty);
+      expect(state().contactsAddress, 'AA:BB');
+      expect(state().contacts.single.name, 'Aisha');
+      publish('CC:DD', pending: true);
+      expect(state().contacts, isEmpty);
+      await waitUntil(() => state().contacts.isNotEmpty);
+      expect(state().contactsAddress, 'CC:DD');
+      expect(state().contacts.single.name, 'Daniel');
+      publish(null);
+      expect(state().contacts, isEmpty);
+      expect(state().contactsAddress, isNull);
+      expect((await store.load('AA:BB'))?.contacts.single.name, 'Aisha');
+      expect((await store.load('CC:DD'))?.contacts.single.name, 'Daniel');
+    },
+  );
+
+  test(
+    'a device without a cache cannot see the previous phone contacts',
+    () async {
+      final first = TestObexBackend();
+      backends.add(first);
+      publish('AA:BB');
+      await synced();
+      final second = TestObexBackend()..failOpen = true;
+      backends.add(second);
+      publish('CC:DD', pending: true);
+      expect(state().contacts, isEmpty);
+      await waitUntil(() => state().contactsAddress == 'CC:DD');
+      expect(state().contacts, isEmpty);
+      publish('CC:DD');
+      await waitUntil(() => state().status == PhoneConnectionStatus.error);
+      expect(state().contacts, isEmpty);
+      expect((await store.load('AA:BB'))?.contacts.single.name, 'Aisha');
+      expect(await store.load('CC:DD'), isNull);
+    },
+  );
+
   test('returning to an earlier phone reuses its own cache', () async {
     final first = TestObexBackend();
     final second = TestObexBackend()
@@ -318,7 +370,8 @@ void main() {
     await synced();
     expect(state().contacts.single.name, 'Aisha');
     expect(reconnect.contactPulls, 0);
-    expect((await store.load())?.address, 'AA:BB');
+    expect((await store.load('AA:BB'))?.address, 'AA:BB');
+    expect((await store.load('CC:DD'))?.contacts.single.name, 'Daniel');
   });
 
   test(
@@ -368,6 +421,7 @@ void main() {
     'alphabetic search does not match every contact through an empty number',
     () async {
       await store.save('AA:BB', TestObexBackend().source);
+      publish('AA:BB', pending: true);
       await waitUntil(() => state().contacts.isNotEmpty);
       expect(
         await container.read(phoneDataProvider.notifier).searchContacts('Bob'),

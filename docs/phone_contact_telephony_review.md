@@ -58,7 +58,8 @@ pairing, which the existing Bluetooth flow explicitly resets.
    Each successful sync replaced the one cache entry, so returning to another
    paired phone lost its saved phonebook. The file now keeps independent
    entries by Bluetooth address and preserves the earlier file format during
-   migration. A reused cache also updates which phone was used last.
+   migration. Every cache lookup requires the owning phone's address; there is
+   no fallback to another phone's last-used phonebook.
 
 3. **Contact synchronization depended on opening a screen — fixed.**
    Riverpod providers initialize lazily. The app now initializes phone data and
@@ -97,6 +98,13 @@ pairing, which the existing Bluetooth flow explicitly resets.
    cannot update a newly selected phone, and service closure clears stale calls.
    Caller names are recomputed when contacts load.
 
+9. **The last phone's contacts could appear without a selected device — fixed.**
+   Startup no longer restores a global last-used phonebook. Contacts carry an
+   explicit owner address, selecting another phone clears the old list
+   immediately, and disconnecting clears the display while retaining each
+   device's saved cache. Caller-name lookup rejects contacts belonging to a
+   different phone, even when both phones contain the same number or contact ID.
+
 ## Verification and remaining limits
 
 Focused tests cover persistence across restart, migration, file permissions,
@@ -106,7 +114,9 @@ failed profile access, phone switching, PBAP serialization, selected gateways,
 caller names, service closure, and stale command completions. Existing phone,
 media, and parser tests are also run.
 
-Validation result: 39 focused tests passed. Analysis of the affected code and
+Validation result: focused contact, telephony, and phone UI tests passed,
+including startup without a selected phone, cache misses after switching,
+wrong-owner cache rejection, and caller-name isolation. Analysis of the affected code and
 tests reported only the existing `ProviderScope.parent` deprecation in
 `lib/main.dart`; it reported no new errors or warnings.
 

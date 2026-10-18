@@ -149,6 +149,7 @@ class PhoneDataState {
     this.deviceAddress,
     this.deviceName,
     this.contacts = const [],
+    this.contactsAddress,
     this.recents = const [],
     this.messages = const [],
     this.conversations = const [],
@@ -165,6 +166,7 @@ class PhoneDataState {
   final String? deviceAddress;
   final String? deviceName;
   final List<PhoneContact> contacts;
+  final String? contactsAddress;
   final List<RecentCall> recents;
   final List<PhoneMessage> messages;
   final List<Conversation> conversations;
@@ -181,6 +183,7 @@ class PhoneDataState {
     String? deviceAddress,
     String? deviceName,
     List<PhoneContact>? contacts,
+    String? contactsAddress,
     List<RecentCall>? recents,
     List<PhoneMessage>? messages,
     List<Conversation>? conversations,
@@ -199,6 +202,7 @@ class PhoneDataState {
     deviceAddress: deviceAddress ?? this.deviceAddress,
     deviceName: deviceName ?? this.deviceName,
     contacts: contacts ?? this.contacts,
+    contactsAddress: contactsAddress ?? this.contactsAddress,
     recents: recents ?? this.recents,
     messages: messages ?? this.messages,
     conversations: conversations ?? this.conversations,

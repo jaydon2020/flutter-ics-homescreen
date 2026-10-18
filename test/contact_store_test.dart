@@ -35,7 +35,7 @@ void main() {
         (await restarted.load('CC:DD'))?.contacts.single.name,
         'Daniel Tan',
       );
-      expect((await restarted.load())?.address, 'CC:DD');
+      expect((await restarted.load('CC:DD'))?.address, 'CC:DD');
       expect(await restarted.load('another-phone'), isNull);
       expect((await file.stat()).mode & 0x1ff, 0x180); // 0600
       expect((await file.parent.stat()).mode & 0x1ff, 0x1c0); // 0700
@@ -54,7 +54,7 @@ void main() {
       (await ContactStore(file).load('phone-a'))?.contacts.single.name,
       'Aisha Rahman',
     );
-    expect((await ContactStore(file).load())?.address, 'phone-b');
+    expect((await ContactStore(file).load('phone-b'))?.address, 'phone-b');
   });
 
   test(
@@ -75,11 +75,28 @@ void main() {
     },
   );
 
+  test(
+    'rejects a cached entry whose owner differs from its device key',
+    () async {
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        jsonEncode({
+          'version': 2,
+          'phones': {
+            'aabb': {'address': 'CC:DD', 'vcard': _second},
+          },
+        }),
+      );
+      expect(await ContactStore(file).load('AA:BB'), isNull);
+      expect(await ContactStore(file).load('CC:DD'), isNull);
+    },
+  );
+
   test('a corrupt cache can be replaced by a successful sync', () async {
     await file.parent.create(recursive: true);
     await file.writeAsString('{broken');
     final store = ContactStore(file);
-    expect(await store.load(), isNull);
+    expect(await store.load('phone-a'), isNull);
     await store.save('phone-a', _first);
     expect((await store.load('phone-a'))?.contacts.single.name, 'Aisha Rahman');
   });

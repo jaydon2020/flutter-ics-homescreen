@@ -35,10 +35,15 @@ class CallStateNotifier extends Notifier<CallState> {
       unawaited(_lifecycle.then((_) => _disposeBackend()));
     });
     ref.listen(bluetoothProvider, (previous, next) => _syncBluetooth(next));
-    ref.listen(phoneDataProvider.select((phone) => phone.contacts), (_, __) {
-      final backend = _backend;
-      if (!_disposed && backend != null) _applySnapshot(backend.current);
-    });
+    ref.listen(
+      phoneDataProvider.select(
+        (phone) => (phone.contactsAddress, phone.contacts),
+      ),
+      (_, __) {
+        final backend = _backend;
+        if (!_disposed && backend != null) _applySnapshot(backend.current);
+      },
+    );
     Future.microtask(() {
       if (!_disposed) _syncBluetooth(ref.read(bluetoothProvider));
     });
@@ -239,9 +244,15 @@ class CallStateNotifier extends Notifier<CallState> {
   String _displayName(TelephonyCallInfo call) {
     if (call.name.trim().isNotEmpty) return call.name;
     final normalized = normalizePhoneNumber(call.number);
-    final contact = ref
-        .read(phoneDataProvider)
-        .contacts
+    final phone = ref.read(phoneDataProvider);
+    final owner = phone.contactsAddress;
+    final address = state.deviceAddress;
+    if (owner == null ||
+        address == null ||
+        _normalizeAddress(owner) != _normalizeAddress(address)) {
+      return call.number.isEmpty ? 'Unknown caller' : call.number;
+    }
+    final contact = phone.contacts
         .where(
           (item) => item.numbers.any(
             (number) => normalizePhoneNumber(number) == normalized,

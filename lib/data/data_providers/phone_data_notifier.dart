@@ -45,25 +45,27 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       unawaited(_lifecycle.then((_) => _disposeNative()));
     });
     ref.listen(bluetoothProvider, (previous, next) => _syncBluetooth(next));
-    Future.microtask(() async {
-      await _loadCachedContacts(0);
+    Future.microtask(() {
       if (!_disposed) _syncBluetooth(ref.read(bluetoothProvider));
     });
     return const PhoneDataState();
   }
 
-  Future<void> _loadCachedContacts(int generation, [String? address]) async {
+  Future<void> _loadCachedContacts(int generation, String address) async {
     if (!_isCurrent(generation)) return;
     try {
       final cached = await ref.read(contactStoreProvider)?.load(address);
       if (!_isCurrent(generation)) return;
       _cachedPhonebook = cached;
-      state = state.copyWith(contacts: cached?.contacts ?? const []);
+      state = state.copyWith(
+        contacts: cached?.contacts ?? const [],
+        contactsAddress: address,
+      );
     } catch (error) {
       // A damaged cache should not prevent a fresh phonebook transfer.
       if (_isCurrent(generation)) {
         _cachedPhonebook = null;
-        state = state.copyWith(contacts: const []);
+        state = state.copyWith(contacts: const [], contactsAddress: address);
       }
       debugPrint('Could not load cached contacts: $error');
     }
@@ -130,9 +132,8 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       status: PhoneConnectionStatus.connecting,
       deviceAddress: address,
       deviceName: name,
-      contacts: _cachedPhonebook?.address == address
-          ? state.contacts
-          : const [],
+      contacts: state.contactsAddress == address ? state.contacts : const [],
+      contactsAddress: address,
       busy: true,
     );
     final cachedContacts = _loadCachedContacts(generation, address);
@@ -203,7 +204,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
     ++_generation;
     _requestedAddress = null;
     _requestSession = false;
-    state = PhoneDataState(contacts: state.contacts);
+    state = const PhoneDataState();
     final task = _lifecycle.then((_) => _disposeNative());
     _lifecycle = task.then((_) {}, onError: (Object _, StackTrace __) {});
     await task;
@@ -333,6 +334,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         );
         state = state.copyWith(
           contacts: updated.contacts,
+          contactsAddress: address,
           pbapAvailable: true,
           clearError: state.error?.startsWith('Contacts ') ?? false,
         );

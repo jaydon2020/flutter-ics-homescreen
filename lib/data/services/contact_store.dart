@@ -60,7 +60,6 @@ class ContactStore {
       if (data['address'] is String && data['vcard'] is String) {
         final key = _key(data['address'] as String);
         return {
-          'lastAddress': key,
           'phones': {key: data},
         };
       }
@@ -72,12 +71,12 @@ class ContactStore {
     }
   }
 
-  Future<CachedPhonebook?> load([String? address]) async {
+  Future<CachedPhonebook?> load(String address) async {
     await _writes;
     final data = await _read();
-    final key = address == null ? data['lastAddress'] : _key(address);
+    final key = _key(address);
     final phones = data['phones'];
-    if (phones is! Map || key == null) return null;
+    if (phones is! Map) return null;
     final entry = phones[key];
     if (entry is! Map ||
         entry['address'] is! String ||
@@ -120,7 +119,7 @@ class ContactStore {
       await temporary.create();
       await _chmod('600', temporary.path);
       await temporary.writeAsString(
-        jsonEncode({'version': 2, 'lastAddress': key, 'phones': phones}),
+        jsonEncode({'version': 2, 'phones': phones}),
         flush: true,
       );
       await temporary.rename(file.path);

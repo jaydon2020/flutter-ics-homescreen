@@ -12,6 +12,12 @@ While pairing or connecting, the app can already display that phone's saved
 contacts. It waits for the explicit Bluetooth connection sequence to finish
 before opening the data sessions.
 
+Cache reads require an explicit device address. Selecting another phone clears
+the old phone's displayed contacts immediately; a phone without a cache starts
+with an empty list. Startup without a selected phone and disconnects also show
+no contacts. Stored contacts remain on disk for their owning device, and caller
+names are resolved only from contacts tagged with the connected phone's address.
+
 On reconnect, the app restores the cache for that Bluetooth address and checks
 the phone's PBAP database identifier and primary/secondary version counters.
 When these match, it reuses the saved vCards without downloading them again.
