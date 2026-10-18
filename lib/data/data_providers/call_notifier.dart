@@ -8,9 +8,10 @@ import 'package:flutter_ics_homescreen/data/services/telephony_backend.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pipewire_telephony_native/pipewire_telephony_native.dart';
 
-final telephonyBackendFactoryProvider = Provider<TelephonyBackend Function()>(
-  (ref) => NativeTelephonyBackend.new,
-);
+final telephonyBackendFactoryProvider =
+    Provider<TelephonyBackend Function(String)>(
+      (ref) => NativeTelephonyBackend.new,
+    );
 
 class CallStateNotifier extends Notifier<CallState> {
   TelephonyBackend? _backend;
@@ -20,48 +21,89 @@ class CallStateNotifier extends Notifier<CallState> {
   int _savedMicrophoneVolume = 8;
   int _savedSpeakerVolume = 8;
   int _generation = 0;
+  bool _disposed = false;
+  String? _requestedAddress;
+  Future<void> _lifecycle = Future.value();
+
+  bool _isCurrent(int generation) => !_disposed && generation == _generation;
 
   @override
   CallState build() {
-    ref.onDispose(() => unawaited(_disposeBackend()));
+    ref.onDispose(() {
+      _disposed = true;
+      ++_generation;
+      unawaited(_lifecycle.then((_) => _disposeBackend()));
+    });
     ref.listen(bluetoothProvider, (previous, next) => _syncBluetooth(next));
-    Future.microtask(() => _syncBluetooth(ref.read(bluetoothProvider)));
+    ref.listen(phoneDataProvider.select((phone) => phone.contacts), (_, __) {
+      final backend = _backend;
+      if (!_disposed && backend != null) _applySnapshot(backend.current);
+    });
+    Future.microtask(() {
+      if (!_disposed) _syncBluetooth(ref.read(bluetoothProvider));
+    });
     return const CallState.initial();
   }
 
   void _syncBluetooth(BluetoothState bluetooth) {
+    if (_disposed) return;
     final device = bluetooth.devices
-        .where((item) => item.connected && bluetoothDeviceIsSupported(item))
+        .where(
+          (item) =>
+              item.connected &&
+              bluetoothDeviceIsSupported(item) &&
+              bluetooth.busyAddress != item.address,
+        )
         .firstOrNull;
     if (device == null) {
-      if (state.deviceAddress != null) unawaited(_disconnect());
-    } else if (device.address != state.deviceAddress) {
+      if (_requestedAddress != null) unawaited(_disconnect());
+    } else if (device.address != _requestedAddress) {
       unawaited(_connect(device.address));
     }
   }
 
   Future<void> _connect(String address) async {
     final generation = ++_generation;
-    await _disposeBackend();
+    _requestedAddress = address;
     state = const CallState.initial().copyWith(
       deviceAddress: address,
       busy: true,
     );
-    try {
-      final backend = ref.read(telephonyBackendFactoryProvider)();
-      _backend = backend;
-      _subscription = backend.snapshots.listen(
-        _applySnapshot,
-        onError: (Object error) => _operationFailed(error),
-        onDone: () => _operationFailed('Telephony service disconnected'),
-      );
-      await backend.connect().timeout(const Duration(seconds: 12));
-      if (generation != _generation) return;
-      await backend.refresh();
-      _applySnapshot(backend.current);
-    } catch (error) {
-      if (generation == _generation) _operationFailed(error);
-    }
+    final task = _lifecycle.then((_) async {
+      await _disposeBackend();
+      if (!_isCurrent(generation)) return;
+      try {
+        final backend = ref.read(telephonyBackendFactoryProvider)(address);
+        _backend = backend;
+        _subscription = backend.snapshots.listen(
+          (snapshot) {
+            if (_isCurrent(generation)) _applySnapshot(snapshot);
+          },
+          onError: (Object error) {
+            if (_isCurrent(generation)) _operationFailed(error);
+          },
+          onDone: () {
+            if (_isCurrent(generation)) {
+              state = const CallState.initial().copyWith(
+                deviceAddress: address,
+                error: 'Telephony service disconnected',
+              );
+            }
+          },
+        );
+        await backend.connect().timeout(const Duration(seconds: 12));
+        if (!_isCurrent(generation)) return;
+        await backend.refresh();
+        if (_isCurrent(generation)) _applySnapshot(backend.current);
+      } catch (error) {
+        if (_isCurrent(generation)) {
+          await _disposeBackend();
+          if (_isCurrent(generation)) _operationFailed(error);
+        }
+      }
+    });
+    _lifecycle = task.then((_) {}, onError: (Object _, StackTrace __) {});
+    await task;
   }
 
   Future<void> retry() async {
@@ -76,26 +118,32 @@ class CallStateNotifier extends Notifier<CallState> {
 
   Future<void> _disconnect() async {
     ++_generation;
-    await _disposeBackend();
+    _requestedAddress = null;
     state = const CallState.initial();
+    final task = _lifecycle.then((_) => _disposeBackend());
+    _lifecycle = task.then((_) {}, onError: (Object _, StackTrace __) {});
+    await task;
   }
 
   Future<void> _disposeBackend() async {
     _durationTimer?.cancel();
     _durationTimer = null;
     _activeSince = null;
-    await _subscription?.cancel();
-    _subscription = null;
+    final subscription = _subscription;
     final backend = _backend;
+    _subscription = null;
     _backend = null;
-    await backend?.close();
+    await subscription?.cancel();
+    try {
+      await backend?.close();
+    } catch (_) {}
   }
 
   void _applySnapshot(TelephonySnapshot snapshot) {
     final address = state.deviceAddress;
     final matchingGateway =
-        snapshot.gatewayAddress == null ||
-        address == null ||
+        snapshot.gatewayAddress != null &&
+        address != null &&
         _normalizeAddress(snapshot.gatewayAddress!) ==
             _normalizeAddress(address);
     final connected =
@@ -104,12 +152,14 @@ class CallStateNotifier extends Notifier<CallState> {
         matchingGateway;
     final gatewayError =
         snapshot.clientState == PipeWireTelephonyClientState.ready &&
-            snapshot.gatewayAddress == null &&
+            !matchingGateway &&
             address != null
         ? 'Bluetooth is connected, but hands-free calling is unavailable. Reconnect the phone in Bluetooth settings.'
         : null;
     final calls = snapshot.calls
-        .where((call) => call.state != PipeWireCallState.disconnected)
+        .where(
+          (call) => connected && call.state != PipeWireCallState.disconnected,
+        )
         .toList();
     final primary = _primaryCall(calls);
     final nextStatus = primary == null
@@ -118,7 +168,14 @@ class CallStateNotifier extends Notifier<CallState> {
     if (nextStatus == CallStatus.active && state.status != CallStatus.active) {
       _activeSince = DateTime.now();
       _startDurationTimer();
-      if (address != null) unawaited(_backend?.activateTransport(address));
+      if (address != null) {
+        final generation = _generation;
+        unawaited(
+          _backend?.activateTransport(address).catchError((Object error) {
+            if (_isCurrent(generation)) _operationFailed(error);
+          }),
+        );
+      }
     } else if (nextStatus != CallStatus.active &&
         nextStatus != CallStatus.held) {
       _durationTimer?.cancel();
@@ -240,15 +297,21 @@ class CallStateNotifier extends Notifier<CallState> {
       _run((backend, address) => backend.setRejectSco(address, reject));
 
   Future<void> toggleMute() async {
+    final generation = _generation;
     final muted = !state.isMuted;
     await setMicrophoneVolume(muted ? 0 : _savedMicrophoneVolume);
-    if (state.error == null) state = state.copyWith(isMuted: muted);
+    if (_isCurrent(generation) && state.error == null) {
+      state = state.copyWith(isMuted: muted);
+    }
   }
 
   Future<void> toggleSpeaker() async {
+    final generation = _generation;
     final enabled = !state.isSpeaker;
     await setSpeakerVolume(enabled ? _savedSpeakerVolume : 0);
-    if (state.error == null) state = state.copyWith(isSpeaker: enabled);
+    if (_isCurrent(generation) && state.error == null) {
+      state = state.copyWith(isSpeaker: enabled);
+    }
   }
 
   Future<void> toggleHold() async {
@@ -269,12 +332,13 @@ class CallStateNotifier extends Notifier<CallState> {
       _operationFailed('Phone telephony is not connected');
       return;
     }
+    final generation = _generation;
     state = state.copyWith(busy: true, clearError: true);
     try {
       await action(backend, address);
-      state = state.copyWith(busy: false);
+      if (_isCurrent(generation)) state = state.copyWith(busy: false);
     } catch (error) {
-      _operationFailed(error);
+      if (_isCurrent(generation)) _operationFailed(error);
     }
   }
 
@@ -291,6 +355,7 @@ class CallStateNotifier extends Notifier<CallState> {
   void _startDurationTimer() {
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_disposed) return;
       final since = _activeSince;
       if (since != null &&
           (state.status == CallStatus.active ||

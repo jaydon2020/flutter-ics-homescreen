@@ -325,6 +325,16 @@ class _ContactsView extends ConsumerStatefulWidget {
 
 class _ContactsViewState extends ConsumerState<_ContactsView> {
   final _scrollController = ScrollController();
+  bool _refreshing = false;
+
+  Future<void> _refreshContacts() async {
+    setState(() => _refreshing = true);
+    try {
+      await ref.read(phoneDataProvider.notifier).refreshContacts(force: true);
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -334,6 +344,11 @@ class _ContactsViewState extends ConsumerState<_ContactsView> {
 
   @override
   Widget build(BuildContext context) {
+    final canRefresh = ref.watch(
+      phoneDataProvider.select(
+        (phone) => phone.status == PhoneConnectionStatus.ready && !phone.busy,
+      ),
+    );
     final normalized = widget.query.toLowerCase();
     final filtered = widget.contacts
         .where(
@@ -344,23 +359,44 @@ class _ContactsViewState extends ConsumerState<_ContactsView> {
         .toList();
     return Column(
       children: [
-        TextField(
-          onChanged: widget.onQueryChanged,
-          style: const TextStyle(color: Colors.white, fontSize: 18),
-          decoration: InputDecoration(
-            hintText: 'Search contacts',
-            hintStyle: const TextStyle(color: AGLDemoColors.periwinkleColor),
-            prefixIcon: const Icon(
-              Icons.search_rounded,
-              color: AGLDemoColors.jordyBlueColor,
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                onChanged: widget.onQueryChanged,
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+                decoration: InputDecoration(
+                  hintText: 'Search contacts',
+                  hintStyle: const TextStyle(
+                    color: AGLDemoColors.periwinkleColor,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: AGLDemoColors.jordyBlueColor,
+                  ),
+                  filled: true,
+                  fillColor: AGLDemoColors.callSurfaceColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
             ),
-            filled: true,
-            fillColor: AGLDemoColors.callSurfaceColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20),
-              borderSide: BorderSide.none,
+            const SizedBox(width: 12),
+            IconButton(
+              tooltip: _refreshing ? 'Refreshing contacts' : 'Refresh contacts',
+              constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
+              onPressed: canRefresh && !_refreshing ? _refreshContacts : null,
+              icon: _refreshing
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 32),
             ),
-          ),
+          ],
         ),
         const SizedBox(height: 12),
         Expanded(

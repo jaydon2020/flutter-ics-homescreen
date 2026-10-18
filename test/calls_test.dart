@@ -4,6 +4,12 @@ import 'package:flutter_ics_homescreen/presentation/screens/apps/apps_content.da
 import 'package:flutter_test/flutter_test.dart';
 
 class _TestPhoneDataNotifier extends PhoneDataNotifier {
+  bool? requestedForce;
+  @override
+  Future<void> refreshContacts({bool force = false}) async {
+    requestedForce = force;
+  }
+
   @override
   PhoneDataState build() => PhoneDataState(
     status: PhoneConnectionStatus.ready,
@@ -161,6 +167,24 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('phone-tab-recents')));
     await tester.pump();
     expect(find.byTooltip('Call'), findsOneWidget);
+  });
+
+  testWidgets('Contacts refresh forces a full phonebook update', (
+    tester,
+  ) async {
+    await show(tester, const CallsPage());
+    await tester.tap(find.byKey(const ValueKey('phone-tab-contacts')));
+    await tester.pump();
+    final refresh = find.byTooltip('Refresh contacts');
+    expect(refresh, findsOneWidget);
+    await tester.tap(refresh);
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CallsPage)),
+    );
+    final notifier =
+        container.read(phoneDataProvider.notifier) as _TestPhoneDataNotifier;
+    expect(notifier.requestedForce, isTrue);
   });
 
   testWidgets('Contacts keep a large scrollbar for long phonebooks', (

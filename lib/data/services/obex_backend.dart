@@ -73,6 +73,7 @@ class NativeObexBackend implements ObexBackend {
   BlueZObexSession? _mapSession;
   DBusClient? _sessionBus;
   String? _messageFolder;
+  int _generation = 0;
 
   BlueZObexClient get _connected =>
       _client ?? (throw StateError('OBEX is not connected'));
@@ -87,30 +88,51 @@ class NativeObexBackend implements ObexBackend {
   @override
   Future<void> open(String address) async {
     await close();
+    final generation = _generation;
     final client = await BlueZObexClient.connect();
+    if (generation != _generation) {
+      await client.dispose();
+      throw StateError('Phone data connection was cancelled');
+    }
     _client = client;
     _sessionBus = DBusClient.session();
     Object? pbapError;
     try {
-      _pbapSession = await client.createSession(address, target: 'pbap');
+      _pbapSession = await _createSession(client, generation, address, 'pbap');
     } catch (error) {
+      if (generation != _generation) rethrow;
       pbapError = error;
     }
     try {
-      _mapSession = await client.createSession(address, target: 'map');
+      _mapSession = await _createSession(client, generation, address, 'map');
     } catch (mapError) {
+      if (generation != _generation) rethrow;
       if (_pbapSession == null) {
-        await client.dispose();
-        await _sessionBus?.close();
-        _client = null;
-        _sessionBus = null;
+        await close();
         throw StateError('PBAP failed: $pbapError; MAP failed: $mapError');
       }
     }
   }
 
+  Future<BlueZObexSession> _createSession(
+    BlueZObexClient client,
+    int generation,
+    String address,
+    String target,
+  ) async {
+    final session = await client.createSession(address, target: target);
+    if (generation != _generation) {
+      try {
+        await session.remove();
+      } catch (_) {}
+      throw StateError('Phone data connection was cancelled');
+    }
+    return session;
+  }
+
   @override
   Future<void> close() async {
+    ++_generation;
     final pbap = _pbapSession;
     final map = _mapSession;
     final client = _client;

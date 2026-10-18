@@ -66,10 +66,13 @@ abstract interface class TelephonyBackend {
 }
 
 class NativeTelephonyBackend implements TelephonyBackend {
-  NativeTelephonyBackend({PipeWireBus bus = PipeWireBus.automatic})
-    : _client = PipeWireTelephonyClient(bus: bus);
+  NativeTelephonyBackend(
+    this.address, {
+    PipeWireBus bus = PipeWireBus.automatic,
+  }) : _client = PipeWireTelephonyClient(bus: bus);
 
   final PipeWireTelephonyClient _client;
+  final String address;
   final _controller = StreamController<TelephonySnapshot>.broadcast(sync: true);
   final _subscriptions = <StreamSubscription<Object?>>[];
   TelephonySnapshot _current = const TelephonySnapshot(
@@ -103,7 +106,13 @@ class NativeTelephonyBackend implements TelephonyBackend {
 
   void _emit([Object? error]) {
     if (_closed) return;
-    final gateway = _client.gateways.firstOrNull;
+    final gateway = _client.gateways
+        .where(
+          (gateway) =>
+              (gateway.address ?? '').replaceAll(':', '').toLowerCase() ==
+              address.replaceAll(':', '').toLowerCase(),
+        )
+        .firstOrNull;
     final transport = gateway?.transport;
     _current = TelephonySnapshot(
       clientState: _client.state,
@@ -114,7 +123,7 @@ class NativeTelephonyBackend implements TelephonyBackend {
       codec: transport?.codec,
       rejectSco: transport?.rejectSco,
       calls: _client.calls
-          .where((call) => call.isValid)
+          .where((call) => call.isValid && identical(call.gateway, gateway))
           .map(
             (call) => TelephonyCallInfo(
               id: call.objectPath,
