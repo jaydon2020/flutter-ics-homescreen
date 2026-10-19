@@ -40,3 +40,6 @@ into `.desktop-homescreen/lib`:
 source ~/develop/bin/workspace-automation/setup_env.sh
 flutter run -d desktop-homescreen
 ```
+
+For refused radio/storage/KUKSA connections, see
+[Runtime service troubleshooting](docs/runtime_services.md).

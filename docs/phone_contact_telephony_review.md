@@ -88,8 +88,11 @@ pairing, which the existing Bluetooth flow explicitly resets.
 7. **Failed sync or storage could appear successful — fixed.**
    A missing Transfer1 object was treated as completion, disk errors were only
    logged, and later profile refreshes could erase a contact error. Contact
-   replacement now requires explicit transfer completion and a complete vCard
-   envelope. Failures keep the prior cache; storage errors remain visible.
+   replacement now requires explicit transfer completion from a native event,
+   the request's returned properties, or a successful status poll, plus a
+   complete vCard envelope. Terminal event snapshots remain valid when BlueZ
+   removes the transfer object before a later poll. Failures keep the prior
+   cache; storage errors remain visible.
 
 8. **Telephony could show a different gateway's calls — fixed.**
    The native backend previously picked the first gateway and collected calls

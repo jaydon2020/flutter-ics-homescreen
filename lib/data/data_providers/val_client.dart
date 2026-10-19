@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_ics_homescreen/export.dart' hide ConnectionState;
+import 'package:flutter_ics_homescreen/data/services/service_retry.dart';
 import 'package:protos/val_api.dart';
 
 class ValClient {
@@ -7,7 +10,10 @@ class ValClient {
   late ClientChannel channel;
   late VALClient stub;
   late String authorization;
-  bool resubscribeOnSubscriptionError = false;
+  late final ServiceRetry _retry;
+  StreamSubscription<SubscribeResponse>? _subscription;
+  bool _subscribing = false;
+  bool _disposed = false;
 
   ValClient({required this.config, required this.ref}) {
     debugPrint("Connecting to KUKSA.val at ${config.hostname}:${config.port}");
@@ -32,24 +38,16 @@ class ValClient {
     );
     stub = VALClient(channel);
 
-    channel.onConnectionStateChanged.listen((ConnectionState state) {
-      //debugPrint('KUKSA.val connection state changed: $state');
-      switch (state) {
-        case ConnectionState.ready:
-          debugPrint('KUKSA.val channel connected');
-          if (resubscribeOnSubscriptionError) {
-            debugPrint(
-              'Recovering from subscription error, attempting to resubscribe',
-            );
-            resubscribeOnSubscriptionError = false;
-            subscribe();
-          }
-          break;
-        default:
-          break;
-      }
+    _retry = ServiceRetry('KUKSA', config.hostname, config.port);
+    ref.onDispose(() {
+      _disposed = true;
+      _retry.dispose();
+      unawaited(_subscription?.cancel());
+      unawaited(channel.shutdown());
     });
   }
+
+  void _reportError(Object error) => _retry.failed(error, subscribe);
 
   void connect() async {
     // Push out default user preferences to databroker.
@@ -65,7 +63,14 @@ class ValClient {
     subscribe();
   }
 
-  void subscribe() async {
+  Future<void> subscribe() async {
+    if (_disposed || _subscribing) return;
+    _subscribing = true;
+    await _subscription?.cancel();
+    if (_disposed) {
+      _subscribing = false;
+      return;
+    }
     List<String> signals = VSSPath().getSignalsList();
     Map<String, String> metadata = {};
     if (config.authorization.isNotEmpty) {
@@ -86,26 +91,33 @@ class ValClient {
       request.entries.add(entry);
     }
     try {
-      ResponseStream responseStream = stub.subscribe(
+      final responseStream = stub.subscribe(
         request,
         options: CallOptions(metadata: metadata),
       );
-      responseStream.listen(
-        (value) async {
+      _subscription = responseStream.listen(
+        (value) {
+          if (_disposed) return;
+          _retry.recovered();
           for (var update in value.updates) {
             if (!(update.hasEntry() && update.entry.hasPath())) continue;
             handleSignalUpdate(update.entry);
           }
         },
-        onError: (stacktrace, errorDescriptor) {
-          resubscribeOnSubscriptionError = true;
-          debugPrint(
-            "(ValClient.subscribe onError) stacktrace: ${stacktrace.toString()}",
-          );
+        onError: (Object error, StackTrace _) => _reportError(error),
+        onDone: () {
+          if (!_disposed) {
+            _reportError(
+              const GrpcError.unavailable('KUKSA subscription closed'),
+            );
+          }
         },
+        cancelOnError: true,
       );
-    } catch (e) {
-      debugPrint(e.toString());
+    } catch (error) {
+      _reportError(error);
+    } finally {
+      _subscribing = false;
     }
   }
 
@@ -169,7 +181,7 @@ class ValClient {
       }
       await stub.set(request, options: CallOptions(metadata: metadata));
     } catch (error) {
-      debugPrint('KUKSA set unavailable for $path: $error');
+      _reportError(error);
     }
   }
 
@@ -183,7 +195,6 @@ class ValClient {
       if (config.authorization.isNotEmpty) {
         metadata = {'authorization': "Bearer ${config.authorization}"};
       }
-      debugPrint("Getting $path value");
       var response = await stub.get(
         request,
         options: CallOptions(metadata: metadata),
@@ -192,12 +203,13 @@ class ValClient {
         debugPrint("Get request had error {response.error().reason}");
         return;
       }
+      if (_disposed) return;
       for (var entry in response.entries) {
         if (!entry.hasPath()) continue;
         handleSignalUpdate(entry);
       }
     } catch (error) {
-      debugPrint('KUKSA get unavailable for $path: $error');
+      _reportError(error);
     }
   }
 

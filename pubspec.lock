@@ -53,8 +53,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "a6d99a4ee5689dce1d531d5b49970200ab10fef6"
-      resolved-ref: "a6d99a4ee5689dce1d531d5b49970200ab10fef6"
+      ref: a6d99a4ee5689dce1d531d5b49970200ab10fef6
+      resolved-ref: a6d99a4ee5689dce1d531d5b49970200ab10fef6
       url: "https://github.com/jaydon2020/bluez_obex_native.git"
     source: git
     version: "0.0.1"

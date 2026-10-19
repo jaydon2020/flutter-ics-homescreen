@@ -401,6 +401,55 @@ void main() {
     },
   );
 
+  test('completed event survives removal of the transfer D-Bus object', () async {
+    final backend = TestObexBackend()
+      ..missingTransfer = true
+      ..terminalEvent = 'complete'
+      ..recentSource =
+          'BEGIN:VCARD\r\nFN:Aisha\r\nTEL:+6012345\r\n'
+          'X-IRMC-CALL-DATETIME;TYPE=RECEIVED:20261019T203000\r\nEND:VCARD\r\n';
+    backends.add(backend);
+    publish('AA:BB');
+    await synced();
+    expect(state().contacts.single.name, 'Aisha');
+    expect(state().recents.single.name, 'Aisha');
+    expect(state().error, isNull);
+    expect((await store.load('AA:BB'))?.contacts.single.name, 'Aisha');
+  });
+
+  test(
+    'completion returned by PullAll does not need a later property query',
+    () async {
+      final backend = TestObexBackend()
+        ..missingTransfer = true
+        ..completedInResult = true;
+      backends.add(backend);
+      publish('AA:BB');
+      await synced();
+      expect(state().contacts.single.name, 'Aisha');
+      expect(state().error, isNull);
+      expect(backend.propertyQueries, 0);
+    },
+  );
+
+  test(
+    'an error event after object removal cannot replace saved contacts',
+    () async {
+      final backend = TestObexBackend();
+      backends.add(backend);
+      publish('AA:BB');
+      await synced();
+      backend.version = '2';
+      backend.source = backend.source.replaceAll('Aisha', 'Daniel');
+      backend.missingTransfer = true;
+      backend.terminalEvent = 'error';
+      await container.read(phoneDataProvider.notifier).refreshContacts();
+      expect(state().contacts.single.name, 'Aisha');
+      expect(state().error, contains('OBEX transfer failed'));
+      expect((await store.load('AA:BB'))?.contacts.single.name, 'Aisha');
+    },
+  );
+
   test(
     'a missing transfer object is not accepted as a successful download',
     () async {

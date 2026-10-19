@@ -31,6 +31,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
   CachedPhonebook? _cachedPhonebook;
   Future<void> _lifecycle = Future.value();
   Future<void> _pbap = Future.value();
+  final _transferSnapshots = <String, BlueZObexTransferProps>{};
 
   bool _isCurrent(int generation, [ObexBackend? backend]) =>
       !_disposed &&
@@ -126,6 +127,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
     bool forceContacts = false,
   }) async {
     final generation = ++_generation;
+    _transferSnapshots.clear();
     _requestedAddress = address;
     _requestSession = openSession;
     state = PhoneDataState(
@@ -152,8 +154,13 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         await backend.open(address).timeout(const Duration(seconds: 15));
         if (!_isCurrent(generation, backend)) return;
         _eventSubscription = backend.events.listen(
-          (_) {
-            if (_isCurrent(generation, backend)) {
+          (event) {
+            if (!_isCurrent(generation, backend)) return;
+            final payload = event.payload;
+            if (payload is BlueZObexTransferProps) {
+              _recordTransfer(payload);
+            } else if (event.type == BlueZObexEventType.message ||
+                event.type == BlueZObexEventType.messageAccess) {
               unawaited(_refreshForNativeEvent());
             }
           },
@@ -202,6 +209,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
 
   Future<void> _disconnect() async {
     ++_generation;
+    _transferSnapshots.clear();
     _requestedAddress = null;
     _requestSession = false;
     state = const PhoneDataState();
@@ -316,7 +324,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
           },
         );
         await _waitForTransfer(
-          transfer.transferPath,
+          transfer,
           backend: backend,
           generation: generation,
         );
@@ -457,11 +465,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       target,
       filters: const {'Format': 'vcard30'},
     );
-    await _waitForTransfer(
-      transfer.transferPath,
-      backend: backend,
-      generation: generation,
-    );
+    await _waitForTransfer(transfer, backend: backend, generation: generation);
     return parseVCardRecents(await File(target).readAsString());
   }
 
@@ -555,7 +559,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         args: const {'Transparent': false, 'Retry': true},
       );
       await _waitForTransfer(
-        transfer.transferPath,
+        transfer,
         backend: backend,
         generation: generation,
       );
@@ -611,11 +615,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       target,
       attachment: true,
     );
-    await _waitForTransfer(
-      transfer.transferPath,
-      backend: backend,
-      generation: generation,
-    );
+    await _waitForTransfer(transfer, backend: backend, generation: generation);
     if (!_isCurrent(generation, backend)) return null;
     _replaceMessage(
       messageId,
@@ -641,7 +641,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         attachment: false,
       );
       await _waitForTransfer(
-        transfer.transferPath,
+        transfer,
         backend: backend,
         generation: generation,
       );
@@ -657,23 +657,69 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
     }
   }
 
+  bool _transferFinished(BlueZObexTransferProps? props) =>
+      props?.status.toLowerCase() == 'complete' ||
+      props?.status.toLowerCase() == 'error';
+
+  void _recordTransfer(BlueZObexTransferProps props) {
+    // A late polling response must not overwrite a terminal event snapshot.
+    if (!_transferFinished(_transferSnapshots[props.objectPath])) {
+      _transferSnapshots[props.objectPath] = props;
+    }
+  }
+
   Future<void> _waitForTransfer(
-    String id, {
+    BlueZObexTransferResult transfer, {
     required ObexBackend backend,
     required int generation,
   }) async {
+    if (!_isCurrent(generation, backend)) {
+      throw StateError('Phone disconnected');
+    }
+    final id = transfer.transferPath;
+    final initial = {
+      for (final property in transfer.properties)
+        property.key.toLowerCase(): property.value,
+    };
+    if (initial.containsKey('status')) {
+      _recordTransfer(
+        BlueZObexTransferProps(
+          objectPath: id,
+          status: initial['status']!,
+          size: int.tryParse(initial['size'] ?? '') ?? 0,
+          transferred: int.tryParse(initial['transferred'] ?? '') ?? 0,
+        ),
+      );
+    }
     final deadline = DateTime.now().add(const Duration(seconds: 30));
     while (DateTime.now().isBefore(deadline)) {
       if (!_isCurrent(generation, backend)) {
         throw StateError('Phone disconnected');
       }
-      // A removed transfer is not proof of success. Keep the previous cache
-      // unless BlueZ has explicitly reported a completed transfer.
-      final props = await backend.transferProperties(id);
+      var props = _transferSnapshots[id];
+      if (!_transferFinished(props)) {
+        try {
+          final polled = await backend.transferProperties(id);
+          if (!_isCurrent(generation, backend)) {
+            throw StateError('Phone disconnected');
+          }
+          _recordTransfer(polled);
+          props = _transferSnapshots[id];
+        } catch (error) {
+          if (!error.toString().contains('UnknownObject')) rethrow;
+          // Native events queued while GetAll was in flight can confirm that
+          // BlueZ completed or failed the transfer before removing its object.
+          if (!_transferFinished(_transferSnapshots[id])) {
+            await Future<void>.delayed(const Duration(milliseconds: 200));
+          }
+          props = _transferSnapshots[id];
+          if (!_transferFinished(props)) rethrow;
+        }
+      }
       if (!_isCurrent(generation, backend)) {
         throw StateError('Phone disconnected');
       }
-      final status = props.status.toLowerCase();
+      final status = props!.status.toLowerCase();
       final transferStatus = switch (status) {
         'complete' => PhoneTransferStatus.complete,
         'suspended' => PhoneTransferStatus.suspended,

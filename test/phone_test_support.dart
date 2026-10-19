@@ -57,6 +57,11 @@ class TestObexBackend implements ObexBackend {
   bool failListing = false;
   bool failPull = false;
   bool missingTransfer = false;
+  String? terminalEvent;
+  bool completedInResult = false;
+  int propertyQueries = 0;
+  int _transferIndex = 0;
+  String recentSource = '';
   bool closed = false;
   bool failMap = false;
   bool failOpen = false;
@@ -131,15 +136,29 @@ class TestObexBackend implements ObexBackend {
       if (failPull) throw StateError('Transfer failed');
       await File(targetFile).writeAsString(content);
     } else {
-      await File(targetFile).writeAsString('');
+      await File(targetFile).writeAsString(recentSource);
     }
-    return BlueZObexTransferResult(transferPath: '/transfer/$book');
+    return BlueZObexTransferResult(
+      transferPath: '/transfer/$book/${++_transferIndex}',
+      properties: completedInResult
+          ? const [BlueZObexProperty(key: 'Status', value: 'complete')]
+          : const [],
+    );
   }
 
   @override
   Future<BlueZObexTransferProps> transferProperties(String path) async {
-    if (path == '/transfer/pb' && transferGate != null) {
+    propertyQueries++;
+    if (path.startsWith('/transfer/pb/') && transferGate != null) {
       await transferGate!.future;
+    }
+    if (terminalEvent != null) {
+      controller.add(
+        BlueZObexEvent(
+          BlueZObexEventType.transfer,
+          BlueZObexTransferProps(objectPath: path, status: terminalEvent!),
+        ),
+      );
     }
     if (missingTransfer) throw StateError('UnknownObject');
     return BlueZObexTransferProps(objectPath: path, status: 'complete');

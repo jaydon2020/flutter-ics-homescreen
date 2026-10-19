@@ -1,3 +1,4 @@
+import 'package:flutter_ics_homescreen/data/services/service_retry.dart';
 import 'package:flutter_ics_homescreen/data/models/users.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 import 'package:uuid/uuid.dart';
@@ -7,13 +8,13 @@ import '../models/user.dart';
 import 'package:protos/storage-api.dart' as storage_api;
 
 class UsersNotifier extends Notifier<Users> {
-  @override
   final List<User> _users = [
     const User(id: '1', name: 'Heather'),
     const User(id: '2', name: 'George'),
     const User(id: '3', name: 'Riley'),
   ];
 
+  @override
   Users build() {
     // Initialize default state.
     state = Users.initial();
@@ -71,7 +72,9 @@ class UsersNotifier extends Notifier<Users> {
       }
     } catch (e) {
       // Fallback to initial defaults if error.
-      debugPrint('Error loading users: $e');
+      if (!serviceUnavailable(e)) {
+        debugPrint('Error loading users: $e');
+      }
     }
   }
 

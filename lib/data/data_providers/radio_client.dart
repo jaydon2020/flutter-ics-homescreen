@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_ics_homescreen/export.dart';
+import 'package:flutter_ics_homescreen/data/services/service_retry.dart';
 import 'package:protos/radio_api.dart' as api;
 
 class RadioClient {
@@ -6,68 +9,92 @@ class RadioClient {
   final Ref ref;
   late api.ClientChannel channel;
   late api.RadioClient stub;
-  bool resubscribeOnSubscriptionError = false;
+  late final ServiceRetry _retry;
+  StreamSubscription<api.StatusResponse>? _subscription;
+  bool _connecting = false;
+  bool _disposed = false;
 
   RadioClient({required this.config, required this.ref}) {
     debugPrint(
-        "Connecting to radio service at ${config.hostname}:${config.port}");
+      "Connecting to radio service at ${config.hostname}:${config.port}",
+    );
     api.ChannelCredentials creds = const api.ChannelCredentials.insecure();
-    channel = api.ClientChannel(config.hostname,
-        port: config.port, options: api.ChannelOptions(credentials: creds));
+    channel = api.ClientChannel(
+      config.hostname,
+      port: config.port,
+      options: api.ChannelOptions(credentials: creds),
+    );
     stub = api.RadioClient(channel);
 
-    channel.onConnectionStateChanged.listen((api.ConnectionState state) {
-      //debugPrint('Radio API Connection state changed: $state');
-      switch (state) {
-        case api.ConnectionState.ready:
-          debugPrint('Radio API channel connected');
-          if (resubscribeOnSubscriptionError) {
-            debugPrint('Recovering from subscription error, attempting to resubscribe');
-            resubscribeOnSubscriptionError = false;
-            getStatusEvents();
-          }
-          break;
-        default:
-          break;
-      }
+    _retry = ServiceRetry('Radio service', config.hostname, config.port);
+    ref.onDispose(() {
+      _disposed = true;
+      _retry.dispose();
+      unawaited(_subscription?.cancel());
+      unawaited(channel.shutdown());
     });
   }
 
-  void connect() async {
-    getBandParameters();
-    getStatusEvents();
-  }
-
-  void getStatusEvents() async {
+  Future<void> connect() async {
+    if (_disposed || _connecting) return;
+    _connecting = true;
     try {
-      api.ResponseStream responseStream = stub.getStatusEvents(api.StatusRequest());
-      responseStream.listen((event) async {
-        handleStatusEvent(event);
-      }, onError: (stacktrace, errorDescriptor) {
-        resubscribeOnSubscriptionError = true;
-        debugPrint("(RadioClient.subscribe onError) stacktrace: ${stacktrace.toString()}");
-      });
-    } catch (e) {
-      debugPrint(e.toString());
+      await getBandParameters();
+      if (_disposed) return;
+      await getStatusEvents();
+    } catch (error) {
+      _reportError(error);
+    } finally {
+      _connecting = false;
     }
   }
 
-  void getBandParameters() async {
-    try {
-      var response = await stub.getBandParameters(
-          api.GetBandParametersRequest(band: api.Band.BAND_FM));
-      ref.read(radioStateProvider.notifier).updateBandParameters(
+  void _reportError(Object error) => _retry.failed(error, connect);
+
+  Future<void> getStatusEvents() async {
+    await _subscription?.cancel();
+    if (_disposed) return;
+    _subscription = stub
+        .getStatusEvents(api.StatusRequest())
+        .listen(
+          (event) {
+            if (_disposed) return;
+            _retry.recovered();
+            handleStatusEvent(event);
+          },
+          onError: (Object error, StackTrace _) => _reportError(error),
+          onDone: () {
+            if (!_disposed) {
+              _reportError(
+                const api.GrpcError.unavailable('Radio status stream closed'),
+              );
+            }
+          },
+          cancelOnError: true,
+        );
+  }
+
+  Future<void> getBandParameters() async {
+    final response = await stub.getBandParameters(
+      api.GetBandParametersRequest(band: api.Band.BAND_FM),
+      options: api.CallOptions(timeout: const Duration(seconds: 5)),
+    );
+    if (_disposed) return;
+    ref
+        .read(radioStateProvider.notifier)
+        .updateBandParameters(
           freqMin: response.min,
           freqMax: response.max,
-          freqStep: response.step);
-
-      // Get initial frequency
-      var freqResponse = await stub.getFrequency(api.GetFrequencyRequest());
+          freqStep: response.step,
+        );
+    final frequency = await stub.getFrequency(
+      api.GetFrequencyRequest(),
+      options: api.CallOptions(timeout: const Duration(seconds: 5)),
+    );
+    if (!_disposed) {
       ref
           .read(radioStateProvider.notifier)
-          .updateFrequency(freqResponse.frequency);
-    } catch (e) {
-      debugPrint(e.toString());
+          .updateFrequency(frequency.frequency);
     }
   }
 
@@ -96,7 +123,7 @@ class RadioClient {
     try {
       await stub.start(api.StartRequest());
     } catch (e) {
-      debugPrint(e.toString());
+      _reportError(e);
     }
   }
 
@@ -104,7 +131,7 @@ class RadioClient {
     try {
       await stub.stop(api.StopRequest());
     } catch (e) {
-      debugPrint(e.toString());
+      _reportError(e);
     }
   }
 
@@ -120,7 +147,7 @@ class RadioClient {
       await stub
           .setFrequency(api.SetFrequencyRequest(frequency: frequency));
     } catch (e) {
-      debugPrint(e.toString());
+      _reportError(e);
     }
   }
 
@@ -135,7 +162,7 @@ class RadioClient {
         await stub
             .setFrequency(api.SetFrequencyRequest(frequency: frequency));
       } catch (e) {
-        debugPrint(e.toString());
+        _reportError(e);
       }
     }
   }
@@ -151,7 +178,7 @@ class RadioClient {
         await stub
             .setFrequency(api.SetFrequencyRequest(frequency: frequency));
       } catch (e) {
-        debugPrint(e.toString());
+        _reportError(e);
       }
     }
   }
@@ -161,7 +188,7 @@ class RadioClient {
       await stub.scanStart(api.ScanStartRequest(
           direction: api.ScanDirection.SCAN_DIRECTION_FORWARD));
     } catch (e) {
-      debugPrint(e.toString());
+      _reportError(e);
     }
   }
 
@@ -170,7 +197,7 @@ class RadioClient {
       await stub.scanStart(api.ScanStartRequest(
           direction: api.ScanDirection.SCAN_DIRECTION_BACKWARD));
     } catch (e) {
-      debugPrint(e.toString());
+      _reportError(e);
     }
   }
 
@@ -178,7 +205,7 @@ class RadioClient {
     try {
       await stub.scanStop(api.ScanStopRequest());
     } catch (e) {
-      debugPrint(e.toString());
+      _reportError(e);
     }
   }
 }

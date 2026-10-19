@@ -1,3 +1,4 @@
+import 'package:flutter_ics_homescreen/data/services/service_retry.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 import 'package:protos/val_api.dart';
 
@@ -48,9 +49,10 @@ class UnitsNotifier extends Notifier<Units> {
       val.setTemperatureUnit(temperatureUnit);
       val.setPressureUnit(pressureUnit);
     } catch (e) {
-      // Fallback to initial defaults if error occurs.
-      debugPrint('Error loading settings for units: $e');
-      state = const Units.initial();
+      // Keep the last known preferences while the storage service reconnects.
+      if (!serviceUnavailable(e)) {
+        debugPrint('Error loading settings for units: $e');
+      }
     }
   }
 
