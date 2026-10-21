@@ -203,6 +203,7 @@ class AppConfig {
   final bool disableBkgAnimation;
   final bool plainBackground;
   final bool randomHybridAnimation;
+  final String preferredOutput;
   final KuksaConfig kuksaConfig;
   final RadioConfig radioConfig;
   final StorageConfig storageConfig;
@@ -217,6 +218,7 @@ class AppConfig {
       {required this.disableBkgAnimation,
       required this.plainBackground,
       required this.randomHybridAnimation,
+      required this.preferredOutput,
       required this.kuksaConfig,
       required this.radioConfig,
       required this.storageConfig,
@@ -412,6 +414,14 @@ final appConfigProvider = Provider((ref) {
       }
     }
 
+    String preferredOutput = "";
+    if (configMap.containsKey('preferred-output')) {
+      var value = configMap['preferred-output'];
+      if (value is String) {
+        preferredOutput = value;
+      }
+    }
+
     final enableCoverArtNative =
         configMap['bluetooth']?['enable-cover-art-native'] == true;
 
@@ -419,6 +429,7 @@ final appConfigProvider = Provider((ref) {
         disableBkgAnimation: disableBkgAnimation,
         plainBackground: plainBackground,
         randomHybridAnimation: randomHybridAnimation,
+        preferredOutput: preferredOutput,
         kuksaConfig: kuksaConfig,
         radioConfig: radioConfig,
         storageConfig: storageConfig,
@@ -431,6 +442,7 @@ final appConfigProvider = Provider((ref) {
         disableBkgAnimation: disableBkgAnimationDefault,
         plainBackground: false,
         randomHybridAnimation: randomHybridAnimationDefault,
+        preferredOutput: "",
         kuksaConfig: KuksaConfig.defaultConfig(),
         radioConfig: RadioConfig.defaultConfig(),
         storageConfig: StorageConfig.defaultConfig(),

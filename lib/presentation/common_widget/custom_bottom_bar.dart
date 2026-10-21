@@ -48,9 +48,11 @@ class CustomBottomBarState extends ConsumerState<CustomBottomBar> {
         status = AppState.apps;
     }
     ref.read(selectedProvider.notifier).update(title);
-    ref.read(appLauncherProvider).activateApp("homescreen");
-    ref.read(currentTimeProvider.notifier).isYearChanged = false;
     ref.read(appProvider.notifier).update(status);
+    // NOTE: A future improvement would be wait until the status update
+    //       takes effect to activate to avoid flicker.
+    ref.read(appLauncherProvider).activateSelf();
+    ref.read(currentTimeProvider.notifier).isYearChanged = false;
   }
 
   @override

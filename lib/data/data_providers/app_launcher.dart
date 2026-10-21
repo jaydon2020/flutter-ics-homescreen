@@ -10,7 +10,10 @@ class AppLauncher {
   late ClientChannel appLauncherChannel;
   late AppLauncherClient appLauncher;
 
+  List<String> availableOutputs = [];
+  String appOutput = "";
   List<String> appStack = ['homescreen'];
+  String raiseAppId = "";
 
   AppLauncher({required this.ref}) {
     aglShellChannel = ClientChannel('localhost',
@@ -26,8 +29,14 @@ class AppLauncher {
   }
 
   run() async {
+    getAvailableOutputs();
     getAppList();
+    handleAppLaunchEvents();
+    handleAglShellStatusEvents();
+  }
 
+  handleAppLaunchEvents() async {
+    debugPrint("Listening for applaunchd events");
     try {
       var response = appLauncher.getStatusEvents(StatusRequest());
       await for (var event in response) {
@@ -37,15 +46,71 @@ class AppLauncher {
           debugPrint("$appStatus");
           if (appStatus.hasId() && appStatus.hasStatus()) {
             if (appStatus.status == "started") {
-              activateApp(appStatus.id);
+              if (!appRunning(appStatus.id)) {
+                // Need to wait for compositor to tell us it's ready
+                //debugPrint('${appStatus.id} not ready, wait for compositor');
+                raiseAppId = appStatus.id;
+              } else {
+                //debugPrint('${appStatus.id} running, activating');
+                activateApp(appStatus.id);
+              }
             } else if (appStatus.status == "terminated") {
               deactivateApp(appStatus.id);
+              if (raiseAppId == appStatus.id) {
+                raiseAppId = "";
+              }
             }
           }
         }
       }
     } catch (e) {
-      print(e);
+      debugPrint('$e');
+    }
+  }
+
+  handleAglShellStatusEvents() async {
+    debugPrint("Listening for agl-compositor events");
+    try {
+      var response = aglShell.appStatusState(AppStateRequest());
+      await for (var event in response) {
+        //debugPrint("Got compositor app state: ${event.appId} = ${event.state}");
+        //debugPrint('raiseAppId = $raiseAppId');
+        if (raiseAppId != "" && event.appId == raiseAppId && event.state == 0) {
+          debugPrint("Compositor ready, activating ${event.appId}");
+          activateApp(raiseAppId);
+          raiseAppId = "";
+        }
+      }
+    } catch (e) {
+      debugPrint('$e');
+    }
+  }
+
+  getAvailableOutputs() async {
+    try {
+      var response = await aglShell.getOutputs(OutputRequest());
+      availableOutputs = [];
+      appOutput = "";
+      for (OutputResponse output in response.outputs) {
+        availableOutputs.add(output.name);
+      }
+      //debugPrint('available outputs: $availableOutputs');
+      if (availableOutputs.isEmpty) {
+        debugPrint('No display outputs available!');
+      } else {
+        appOutput = availableOutputs[0];
+        String preferredOutput = ref.read(appConfigProvider).preferredOutput;
+        if (preferredOutput != "") {
+          if (availableOutputs.contains(preferredOutput)) {
+            appOutput = preferredOutput;
+          } else {
+            debugPrint('Preferred output $preferredOutput is not available!');
+          }
+        }
+        debugPrint('Using display output $appOutput');
+      }
+    } catch (e) {
+      debugPrint('$e');
     }
   }
 
@@ -77,7 +142,7 @@ class AppLauncher {
 
       ref.read(appLauncherListProvider.notifier).update(apps);
     } catch (e) {
-      print(e);
+      debugPrint('$e');
     }
   }
 
@@ -97,16 +162,32 @@ class AppLauncher {
     }
   }
 
+  bool appRunning(String id) {
+    return appStack.contains(id);
+  }
+
+  activateSelf() async {
+    activateApp('homescreen');
+  }
+
   activateApp(String id) async {
+    //debugPrint('appStack.last = ${appStack.last}, id = $id');
     if (appStack.last != id) {
-      var req = ActivateRequest(appId: id);
-      aglShell.activateApp(req);
+      if (appOutput != "") {
+        //debugPrint('activateApp: activating $id on $appOutput');
+        var req = ActivateRequest(appId: id, outputName: appOutput);
+        aglShell.activateApp(req);
+      } else {
+        debugPrint('No output!');
+      }
       addAppToStack(id);
     }
   }
 
   deactivateApp(String id) async {
     if (appStack.contains(id)) {
+      var req = DeactivateRequest(appId: id);
+      aglShell.deactivateApp(req);
       appStack.remove(id);
       if (appStack.isNotEmpty) {
         activateApp(appStack.last);
