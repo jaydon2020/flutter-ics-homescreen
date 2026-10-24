@@ -20,6 +20,7 @@ class CallParticipant {
 
 @immutable
 class CallState {
+  static const _unchanged = Object();
   const CallState({
     required this.status,
     required this.name,
@@ -85,6 +86,16 @@ class CallState {
 
   bool get hasCall => status != CallStatus.idle && status != CallStatus.ended;
 
+  bool get hasWaitingCall =>
+      participants.any((c) => c.status == CallStatus.incoming) &&
+      participants.any(
+        (c) => c.status == CallStatus.active || c.status == CallStatus.held,
+      );
+  bool get canSwap =>
+      participants.any((c) => c.status == CallStatus.active) &&
+      participants.any((c) => c.status == CallStatus.held);
+  bool get canMerge => canSwap && !participants.any((c) => c.multiparty);
+
   CallState copyWith({
     CallStatus? status,
     String? name,
@@ -96,13 +107,13 @@ class CallState {
     bool? connected,
     bool? busy,
     String? deviceAddress,
-    String? gatewayAddress,
-    String? activeCallId,
-    int? speakerVolume,
-    int? microphoneVolume,
-    String? transportState,
-    int? codec,
-    bool? rejectSco,
+    Object? gatewayAddress = _unchanged,
+    Object? activeCallId = _unchanged,
+    Object? speakerVolume = _unchanged,
+    Object? microphoneVolume = _unchanged,
+    Object? transportState = _unchanged,
+    Object? codec = _unchanged,
+    Object? rejectSco = _unchanged,
     List<CallParticipant>? participants,
     String? error,
     bool clearCall = false,
@@ -118,13 +129,27 @@ class CallState {
     connected: connected ?? this.connected,
     busy: busy ?? this.busy,
     deviceAddress: deviceAddress ?? this.deviceAddress,
-    gatewayAddress: gatewayAddress ?? this.gatewayAddress,
-    activeCallId: clearCall ? null : activeCallId ?? this.activeCallId,
-    speakerVolume: speakerVolume ?? this.speakerVolume,
-    microphoneVolume: microphoneVolume ?? this.microphoneVolume,
-    transportState: transportState ?? this.transportState,
-    codec: codec ?? this.codec,
-    rejectSco: rejectSco ?? this.rejectSco,
+    gatewayAddress: identical(gatewayAddress, _unchanged)
+        ? this.gatewayAddress
+        : gatewayAddress as String?,
+    activeCallId: clearCall
+        ? null
+        : identical(activeCallId, _unchanged)
+        ? this.activeCallId
+        : activeCallId as String?,
+    speakerVolume: identical(speakerVolume, _unchanged)
+        ? this.speakerVolume
+        : speakerVolume as int?,
+    microphoneVolume: identical(microphoneVolume, _unchanged)
+        ? this.microphoneVolume
+        : microphoneVolume as int?,
+    transportState: identical(transportState, _unchanged)
+        ? this.transportState
+        : transportState as String?,
+    codec: identical(codec, _unchanged) ? this.codec : codec as int?,
+    rejectSco: identical(rejectSco, _unchanged)
+        ? this.rejectSco
+        : rejectSco as bool?,
     participants: clearCall ? const [] : participants ?? this.participants,
     error: clearError ? null : error ?? this.error,
   );

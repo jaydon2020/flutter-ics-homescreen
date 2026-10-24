@@ -22,7 +22,7 @@ class IncomingCallOverlay extends ConsumerWidget {
               final compact = constraints.maxWidth < 600;
               return Container(
                 key: const ValueKey('incoming-call-banner'),
-                height: 132,
+                height: call.hasWaitingCall ? 200 : 132,
                 padding: EdgeInsets.symmetric(
                   horizontal: compact ? 10 : 22,
                   vertical: 10,
@@ -38,28 +38,65 @@ class IncomingCallOverlay extends ConsumerWidget {
                     ),
                   ],
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    _NotifierAction(
-                      label: 'Decline',
-                      icon: Icons.call_end_rounded,
-                      color: AGLDemoColors.callDangerColor,
-                      compact: compact,
-                      onPressed: notifier.rejectCall,
-                    ),
                     Expanded(
-                      child: Center(
-                        child: _CallerDetails(call: call, compact: compact),
+                      child: Row(
+                        children: [
+                          _NotifierAction(
+                            label: 'Decline',
+                            icon: Icons.call_end_rounded,
+                            color: AGLDemoColors.callDangerColor,
+                            compact: compact,
+                            onPressed: call.busy ? null : notifier.rejectCall,
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: _CallerDetails(
+                                call: call,
+                                compact: compact,
+                              ),
+                            ),
+                          ),
+                          _NotifierAction(
+                            label: 'Answer',
+                            icon: Icons.call_rounded,
+                            color: AGLDemoColors.greenColor,
+                            compact: compact,
+                            darkForeground: true,
+                            onPressed: call.busy
+                                ? null
+                                : call.hasWaitingCall
+                                ? notifier.holdAndAnswer
+                                : notifier.acceptCall,
+                          ),
+                        ],
                       ),
                     ),
-                    _NotifierAction(
-                      label: 'Answer',
-                      icon: Icons.call_rounded,
-                      color: AGLDemoColors.greenColor,
-                      compact: compact,
-                      darkForeground: true,
-                      onPressed: notifier.acceptCall,
-                    ),
+                    if (call.hasWaitingCall)
+                      Wrap(
+                        spacing: 16,
+                        children: [
+                          TextButton(
+                            onPressed: call.busy
+                                ? null
+                                : notifier.holdAndAnswer,
+                            child: const Text('Hold & answer'),
+                          ),
+                          TextButton(
+                            onPressed: call.busy
+                                ? null
+                                : notifier.releaseAndAnswer,
+                            child: const Text('End & answer'),
+                          ),
+                        ],
+                      ),
+                    if (call.error != null)
+                      Text(
+                        call.error!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   ],
                 ),
               );
@@ -81,8 +118,9 @@ class _CallerDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment:
-          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
       children: [
         Text(
           call.name.isEmpty ? 'Unknown caller' : call.name,
@@ -148,7 +186,7 @@ class _NotifierAction extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool compact;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool darkForeground;
 
   @override
@@ -169,7 +207,7 @@ class _NotifierAction extends StatelessWidget {
               height: compact ? 54 : 64,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color,
+                color: onPressed == null ? color.withValues(alpha: 0.3) : color,
               ),
               child: Icon(
                 icon,

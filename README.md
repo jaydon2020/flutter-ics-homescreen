@@ -30,6 +30,8 @@ flutter run --dart-define=DEBUG_DISPLAY=true,DISABLE_BKG_ANIMATION=true
 
 See [Native phone integration](docs/native_phone_integration.md) for PBAP, MAP,
 PipeWire Telephony, host bootstrap, and AGL cross-build requirements.
+Use the [PBAP, MAP, and Telephony test plan](docs/phone_integration_test_plan.md)
+for automated checks and real-phone validation on desktop and AGL.
 
 After selecting the workspace-automation Flutter SDK, launch the Toyota
 homescreen device directly. The package build hook builds
@@ -43,3 +45,15 @@ flutter run -d desktop-homescreen
 
 For refused radio/storage/KUKSA connections, see
 [Runtime service troubleshooting](docs/runtime_services.md).
+
+## Checks
+
+```sh
+flutter analyze --no-fatal-infos
+flutter test --reporter expanded
+```
+
+The Flutter checks workflow runs both commands on pushes and pull requests.
+Analysis fails on errors and warnings; existing informational lints are reported.
+See [Application call controls](docs/phone_contact_telephony_review.md#application-call-controls)
+for multi-call behavior and intentionally internal audio APIs.

@@ -85,7 +85,7 @@ class _CallsPageState extends ConsumerState<CallsPage> {
                         _PhoneSection.dial => _DialView(
                           number: _number,
                           landscape: landscape,
-                          enabled: call.connected,
+                          enabled: call.connected && !call.busy,
                           onDigit: (digit) {
                             if (_number.length < 32) {
                               setState(() => _number += digit);

@@ -53,17 +53,52 @@ class _Telephony implements TelephonyBackend {
     await controller.close();
   }
 
-  @override
-  Future<void> setMicrophoneVolume(String address, int volume) async {
+  final operations = <List<Object>>[];
+  Object? commandError;
+  Future<void> record(String method, List<Object> args) async {
+    operations.add([method, ...args]);
     if (commandGate != null) await commandGate!.future;
+    if (commandError != null) throw commandError!;
   }
 
   @override
-  Future<void> activateTransport(String address) async {}
+  Future<void> dial(String address, String number) =>
+      record('dial', [address, number]);
   @override
-  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError(
-    'Unexpected telephony operation: ${invocation.memberName}',
-  );
+  Future<void> answer(String callId) => record('answer', [callId]);
+  @override
+  Future<void> hangup(String callId) => record('hangup', [callId]);
+  @override
+  Future<void> hangupAll(String address) => record('hangupAll', [address]);
+  @override
+  Future<void> sendTones(String address, String tones) =>
+      record('sendTones', [address, tones]);
+  @override
+  Future<void> swapCalls(String address) => record('swapCalls', [address]);
+  @override
+  Future<void> releaseAndAnswer(String address) =>
+      record('releaseAndAnswer', [address]);
+  @override
+  Future<void> releaseAndSwap(String address) =>
+      record('releaseAndSwap', [address]);
+  @override
+  Future<void> holdAndAnswer(String address) =>
+      record('holdAndAnswer', [address]);
+  @override
+  Future<void> createMultiparty(String address) =>
+      record('createMultiparty', [address]);
+  @override
+  Future<void> setSpeakerVolume(String address, int volume) =>
+      record('setSpeakerVolume', [address, volume]);
+  @override
+  Future<void> setMicrophoneVolume(String address, int volume) =>
+      record('setMicrophoneVolume', [address, volume]);
+  @override
+  Future<void> activateTransport(String address) =>
+      record('activateTransport', [address]);
+  @override
+  Future<void> setRejectSco(String address, bool value) =>
+      record('setRejectSco', [address, value]);
 }
 
 void main() {
@@ -100,6 +135,264 @@ void main() {
     container.dispose();
     await waitUntil(() => opened.every((backend) => backend.closed));
   });
+
+  Future<_Telephony> connect() async {
+    final backend = _Telephony('AA:BB');
+    backends.add(backend);
+    publish('AA:BB');
+    await waitUntil(() => state().connected);
+    return backend;
+  }
+
+  TelephonyCallInfo call(String id, PipeWireCallState status) =>
+      TelephonyCallInfo(
+        id: id,
+        number: '123',
+        name: '',
+        state: status,
+        multiparty: false,
+      );
+  void calls(_Telephony backend, List<TelephonyCallInfo> calls) => backend.emit(
+    TelephonySnapshot(
+      clientState: PipeWireTelephonyClientState.ready,
+      gatewayAddress: 'AA:BB',
+      calls: calls,
+    ),
+  );
+
+  test(
+    'all commands forward the selected gateway, call and arguments',
+    () async {
+      final backend = await connect();
+      final notifier = container.read(callStateProvider.notifier);
+      await notifier.startCall('456');
+      calls(backend, [call('incoming', PipeWireCallState.incoming)]);
+      await notifier.acceptCall();
+      await notifier.rejectCall();
+      await notifier.endCall();
+      await notifier.hangupAll();
+      await notifier.sendTones('12#');
+      await notifier.setSpeakerVolume(99);
+      await notifier.setMicrophoneVolume(-1);
+      await notifier.activateTransport();
+      await notifier.setRejectSco(true);
+      calls(backend, [
+        call('active', PipeWireCallState.active),
+        call('waiting', PipeWireCallState.waiting),
+      ]);
+      await notifier.holdAndAnswer();
+      await notifier.releaseAndAnswer();
+      calls(backend, [
+        call('active', PipeWireCallState.active),
+        call('held', PipeWireCallState.held),
+      ]);
+      await notifier.swapCalls();
+      await notifier.releaseAndSwap();
+      await notifier.createMultiparty();
+      expect(
+        backend.operations,
+        containsAllInOrder([
+          ['dial', 'AA:BB', '456'],
+          ['answer', 'incoming'],
+          ['hangup', 'incoming'],
+          ['hangup', 'incoming'],
+          ['hangupAll', 'AA:BB'],
+          ['sendTones', 'AA:BB', '12#'],
+          ['setSpeakerVolume', 'AA:BB', 15],
+          ['setMicrophoneVolume', 'AA:BB', 0],
+          ['activateTransport', 'AA:BB'],
+          ['setRejectSco', 'AA:BB', true],
+          ['holdAndAnswer', 'AA:BB'],
+          ['releaseAndAnswer', 'AA:BB'],
+          ['swapCalls', 'AA:BB'],
+          ['releaseAndSwap', 'AA:BB'],
+          ['createMultiparty', 'AA:BB'],
+        ]),
+      );
+    },
+  );
+
+  test('single call cannot invoke multi-call operations', () async {
+    final backend = await connect();
+    calls(backend, [call('one', PipeWireCallState.active)]);
+    backend.operations.clear();
+    final notifier = container.read(callStateProvider.notifier);
+    await notifier.swapCalls();
+    await notifier.releaseAndSwap();
+    await notifier.createMultiparty();
+    await notifier.holdAndAnswer();
+    await notifier.releaseAndAnswer();
+    expect(backend.operations, isEmpty);
+  });
+
+  test(
+    'snapshot cannot unlock a pending command or allow duplicate taps',
+    () async {
+      final backend = await connect();
+      backend.commandGate = Completer<void>();
+      final notifier = container.read(callStateProvider.notifier);
+      final pending = notifier.startCall('123');
+      backend.emit(backend.current);
+      expect(state().busy, isTrue);
+      await notifier.startCall('123');
+      await notifier.toggleMute();
+      expect(backend.operations, [
+        ['dial', 'AA:BB', '123'],
+      ]);
+      backend.commandGate!.complete();
+      await pending;
+      expect(state().busy, isFalse);
+    },
+  );
+
+  for (final command in <String, Future<void> Function(CallStateNotifier)>{
+    'dial': (n) => n.startCall('123'),
+    'answer': (n) => n.acceptCall(),
+    'hangup': (n) => n.endCall(),
+    'hangupAll': (n) => n.hangupAll(),
+    'tones': (n) => n.sendTones('#'),
+    'swap': (n) => n.swapCalls(),
+    'releaseAndSwap': (n) => n.releaseAndSwap(),
+    'releaseAndAnswer': (n) => n.releaseAndAnswer(),
+    'holdAndAnswer': (n) => n.holdAndAnswer(),
+    'merge': (n) => n.createMultiparty(),
+    'speaker': (n) => n.setSpeakerVolume(8),
+    'microphone': (n) => n.toggleMute(),
+    'activate': (n) => n.activateTransport(),
+    'rejectSco': (n) => n.setRejectSco(true),
+  }.entries) {
+    test('${command.key} reports failure and unlocks controls', () async {
+      final backend = await connect();
+      calls(backend, [
+        if (command.key != 'answer') ...[
+          call('active', PipeWireCallState.active),
+          call('held', PipeWireCallState.held),
+        ],
+        call('waiting', PipeWireCallState.waiting),
+      ]);
+      backend.commandError = StateError('command failed');
+      await command.value(container.read(callStateProvider.notifier));
+      expect(state().error, contains('command failed'));
+      expect(state().busy, isFalse);
+      expect(state().isMuted, isFalse);
+    });
+  }
+
+  test(
+    'removed transport and gateway fields clear instead of retaining values',
+    () async {
+      final backend = await connect();
+      backend.emit(
+        const TelephonySnapshot(
+          clientState: PipeWireTelephonyClientState.ready,
+          gatewayAddress: 'AA:BB',
+          speakerVolume: 9,
+          microphoneVolume: 7,
+          transportState: PipeWireTransportState.active,
+          codec: 2,
+          rejectSco: true,
+        ),
+      );
+      expect(state().codec, 2);
+      backend.emit(
+        const TelephonySnapshot(
+          clientState: PipeWireTelephonyClientState.ready,
+          gatewayAddress: 'AA:BB',
+        ),
+      );
+      expect(state().codec, isNull);
+      expect(state().transportState, isNull);
+      expect(state().rejectSco, isNull);
+      expect(state().speakerVolume, isNull);
+      expect(state().microphoneVolume, isNull);
+      backend.emit(
+        const TelephonySnapshot(
+          clientState: PipeWireTelephonyClientState.ready,
+        ),
+      );
+      expect(state().gatewayAddress, isNull);
+    },
+  );
+
+  for (final action in ['answer', 'hangup']) {
+    test('$action ignores duplicate taps until completion', () async {
+      final backend = await connect();
+      calls(backend, [call('one', PipeWireCallState.incoming)]);
+      backend.commandGate = Completer<void>();
+      final notifier = container.read(callStateProvider.notifier);
+      final command = action == 'answer'
+          ? notifier.acceptCall
+          : notifier.endCall;
+      final pending = command();
+      backend.emit(backend.current);
+      await command();
+      expect(state().busy, isTrue);
+      expect(backend.operations, [
+        [action, 'one'],
+      ]);
+      backend.commandGate!.complete();
+      await pending;
+      expect(state().busy, isFalse);
+    });
+  }
+
+  test('mute and unmute restore the last nonzero microphone gain', () async {
+    final backend = await connect();
+    backend.emit(
+      const TelephonySnapshot(
+        clientState: PipeWireTelephonyClientState.ready,
+        gatewayAddress: 'AA:BB',
+        microphoneVolume: 11,
+      ),
+    );
+    final notifier = container.read(callStateProvider.notifier);
+    await notifier.toggleMute();
+    expect(state().isMuted, isTrue);
+    await notifier.toggleMute();
+    expect(state().isMuted, isFalse);
+    expect(backend.operations, [
+      ['setMicrophoneVolume', 'AA:BB', 0],
+      ['setMicrophoneVolume', 'AA:BB', 11],
+    ]);
+  });
+
+  testWidgets('duration resets when the primary call identity changes', (
+    tester,
+  ) async {
+    // Pump virtual time only after the asynchronous provider connection.
+    late _Telephony backend;
+    await tester.runAsync(() async {
+      backend = await connect();
+    });
+    calls(backend, [call('one', PipeWireCallState.active)]);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1100)),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(state().duration.inSeconds, greaterThanOrEqualTo(1));
+    calls(backend, [call('two', PipeWireCallState.active)]);
+    expect(state().activeCallId, 'two');
+    expect(state().duration, Duration.zero);
+    publish(null);
+    await tester.runAsync(() => waitUntil(() => backend.closed));
+  });
+
+  test(
+    'retry after service closure binds a fresh backend and accepts commands',
+    () async {
+      final first = await connect();
+      await first.controller.close();
+      final second = _Telephony('AA:BB');
+      backends.add(second);
+      final notifier = container.read(callStateProvider.notifier);
+      await notifier.retry();
+      await notifier.startCall('456');
+      expect(state().connected, isTrue);
+      expect(second.operations, [
+        ['dial', 'AA:BB', '456'],
+      ]);
+    },
+  );
 
   test(
     'connects once per Bluetooth link and binds the selected phone address',

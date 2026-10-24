@@ -19,8 +19,8 @@ class Event implements EventInterface {
   });
 
   @override
-  bool operator ==(dynamic other) {
-    return date == other.date &&
+  bool operator ==(Object other) {
+    return other is Event && date == other.date &&
         title == other.title &&
         description == other.description &&
         location == other.location &&

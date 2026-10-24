@@ -14,7 +14,7 @@ class WiredPage extends ConsumerWidget {
 }
 
 class WiredScreen extends StatefulWidget {
-  WidgetRef ref;
+  final WidgetRef ref;
   WiredScreen({super.key, required this.ref});
 
   @override

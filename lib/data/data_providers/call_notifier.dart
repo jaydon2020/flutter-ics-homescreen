@@ -22,6 +22,7 @@ class CallStateNotifier extends Notifier<CallState> {
   int _savedSpeakerVolume = 8;
   int _generation = 0;
   bool _disposed = false;
+  bool _commandInFlight = false;
   String? _requestedAddress;
   Future<void> _lifecycle = Future.value();
 
@@ -69,6 +70,7 @@ class CallStateNotifier extends Notifier<CallState> {
 
   Future<void> _connect(String address) async {
     final generation = ++_generation;
+    _commandInFlight = false;
     _requestedAddress = address;
     state = const CallState.initial().copyWith(
       deviceAddress: address,
@@ -89,6 +91,8 @@ class CallStateNotifier extends Notifier<CallState> {
           },
           onDone: () {
             if (_isCurrent(generation)) {
+              _durationTimer?.cancel();
+              _activeSince = null;
               state = const CallState.initial().copyWith(
                 deviceAddress: address,
                 error: 'Telephony service disconnected',
@@ -123,6 +127,7 @@ class CallStateNotifier extends Notifier<CallState> {
 
   Future<void> _disconnect() async {
     ++_generation;
+    _commandInFlight = false;
     _requestedAddress = null;
     state = const CallState.initial();
     final task = _lifecycle.then((_) => _disposeBackend());
@@ -170,8 +175,14 @@ class CallStateNotifier extends Notifier<CallState> {
     final nextStatus = primary == null
         ? CallStatus.idle
         : _mapStatus(primary.state);
-    if (nextStatus == CallStatus.active && state.status != CallStatus.active) {
-      _activeSince = DateTime.now();
+    final primaryChanged = primary?.id != state.activeCallId;
+    if (primaryChanged) {
+      _durationTimer?.cancel();
+      _activeSince = null;
+    }
+    if (nextStatus == CallStatus.active &&
+        (primaryChanged || state.status != CallStatus.active)) {
+      _activeSince ??= DateTime.now();
       _startDurationTimer();
       if (address != null) {
         final generation = _generation;
@@ -201,10 +212,13 @@ class CallStateNotifier extends Notifier<CallState> {
       status: nextStatus,
       name: primary == null ? '' : _displayName(primary),
       number: primary?.number ?? '',
-      duration: primary == null ? Duration.zero : state.duration,
+      duration: primary == null || primaryChanged
+          ? Duration.zero
+          : state.duration,
       isHeld: nextStatus == CallStatus.held,
       connected: connected,
-      busy: false,
+      busy: _commandInFlight,
+      isMuted: snapshot.microphoneVolume == 0,
       gatewayAddress: snapshot.gatewayAddress,
       activeCallId: primary?.id,
       speakerVolume: snapshot.speakerVolume,
@@ -266,6 +280,7 @@ class CallStateNotifier extends Notifier<CallState> {
   Future<void> startCall(String number, {String? name}) =>
       _run((backend, address) => backend.dial(address, number));
   Future<void> acceptCall() async {
+    if (state.hasWaitingCall) return holdAndAnswer();
     final id = _incomingCallId;
     if (id != null) await _run((backend, _) => backend.answer(id));
   }
@@ -284,16 +299,36 @@ class CallStateNotifier extends Notifier<CallState> {
       _run((backend, address) => backend.hangupAll(address));
   Future<void> sendTones(String tones) =>
       _run((backend, address) => backend.sendTones(address, tones));
-  Future<void> swapCalls() =>
-      _run((backend, address) => backend.swapCalls(address));
-  Future<void> releaseAndAnswer() =>
-      _run((backend, address) => backend.releaseAndAnswer(address));
-  Future<void> releaseAndSwap() =>
-      _run((backend, address) => backend.releaseAndSwap(address));
-  Future<void> holdAndAnswer() =>
-      _run((backend, address) => backend.holdAndAnswer(address));
-  Future<void> createMultiparty() =>
-      _run((backend, address) => backend.createMultiparty(address));
+  Future<void> swapCalls() async {
+    if (state.canSwap) {
+      await _run((backend, address) => backend.swapCalls(address));
+    }
+  }
+
+  Future<void> releaseAndAnswer() async {
+    if (state.hasWaitingCall) {
+      await _run((backend, address) => backend.releaseAndAnswer(address));
+    }
+  }
+
+  Future<void> releaseAndSwap() async {
+    if (state.canSwap) {
+      await _run((backend, address) => backend.releaseAndSwap(address));
+    }
+  }
+
+  Future<void> holdAndAnswer() async {
+    if (state.hasWaitingCall) {
+      await _run((backend, address) => backend.holdAndAnswer(address));
+    }
+  }
+
+  Future<void> createMultiparty() async {
+    if (state.canMerge) {
+      await _run((backend, address) => backend.createMultiparty(address));
+    }
+  }
+
   Future<void> setSpeakerVolume(int volume) => _run(
     (backend, address) =>
         backend.setSpeakerVolume(address, volume.clamp(0, 15)),
@@ -308,6 +343,7 @@ class CallStateNotifier extends Notifier<CallState> {
       _run((backend, address) => backend.setRejectSco(address, reject));
 
   Future<void> toggleMute() async {
+    if (_commandInFlight) return;
     final generation = _generation;
     final muted = !state.isMuted;
     await setMicrophoneVolume(muted ? 0 : _savedMicrophoneVolume);
@@ -317,16 +353,13 @@ class CallStateNotifier extends Notifier<CallState> {
   }
 
   Future<void> toggleSpeaker() async {
+    if (_commandInFlight) return;
     final generation = _generation;
     final enabled = !state.isSpeaker;
     await setSpeakerVolume(enabled ? _savedSpeakerVolume : 0);
     if (_isCurrent(generation) && state.error == null) {
       state = state.copyWith(isSpeaker: enabled);
     }
-  }
-
-  Future<void> toggleHold() async {
-    await swapCalls();
   }
 
   String? get _incomingCallId => state.participants
@@ -337,6 +370,7 @@ class CallStateNotifier extends Notifier<CallState> {
   Future<void> _run(
     Future<void> Function(TelephonyBackend, String) action,
   ) async {
+    if (_disposed || _commandInFlight) return;
     final backend = _backend;
     final address = state.deviceAddress;
     if (backend == null || address == null || !state.connected) {
@@ -344,18 +378,23 @@ class CallStateNotifier extends Notifier<CallState> {
       return;
     }
     final generation = _generation;
+    _commandInFlight = true;
     state = state.copyWith(busy: true, clearError: true);
     try {
       await action(backend, address);
-      if (_isCurrent(generation)) state = state.copyWith(busy: false);
     } catch (error) {
       if (_isCurrent(generation)) _operationFailed(error);
+    } finally {
+      if (_isCurrent(generation)) {
+        _commandInFlight = false;
+        state = state.copyWith(busy: false);
+      }
     }
   }
 
   void _operationFailed(Object error) {
     state = state.copyWith(
-      busy: false,
+      busy: _commandInFlight,
       error: error.toString().replaceFirst(
         RegExp(r'^\w+(?:Exception|Error):\s*'),
         '',

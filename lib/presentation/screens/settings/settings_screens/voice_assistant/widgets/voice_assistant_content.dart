@@ -1,6 +1,4 @@
 import 'package:flutter_ics_homescreen/export.dart';
-
-import 'package:flutter_ics_homescreen/export.dart';
 import 'package:flutter_ics_homescreen/presentation/screens/settings/settings_screens/voice_assistant/widgets/voice_assistant_tile.dart';
 
 import '../../../../../../core/utils/helpers.dart';
@@ -9,20 +7,16 @@ import '../../../../../../data/models/voice_assistant_state.dart';
 @immutable
 class VoiceAssistantContent extends ConsumerWidget {
   VoiceAssistantContent({Key? key}) : super(key: key);
-  bool isWakeWordMode = false;
-  bool isVoiceAssistantOverlay = false;
-  bool isOnlineMode = false;
-  SttModel sttModel = SttModel.whisper;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    isWakeWordMode =
+    final isWakeWordMode =
         ref.watch(voiceAssistantStateProvider.select((value) => value.isWakeWordMode));
-    isVoiceAssistantOverlay =
+    final isVoiceAssistantOverlay =
         ref.watch(voiceAssistantStateProvider.select((value) => value.voiceAssistantOverlay));
-    isOnlineMode =
+    final isOnlineMode =
         ref.watch(voiceAssistantStateProvider.select((value) => value.isOnlineMode));
-    sttModel =
+    final sttModel =
         ref.watch(voiceAssistantStateProvider.select((value) => value.sttModel));
 
     final wakeWordCallback = () {

@@ -14,8 +14,8 @@ class MarkedDate implements MarkedDateInterface {
   });
 
   @override
-  bool operator ==(dynamic other) {
-    return date == other.date &&
+  bool operator ==(Object other) {
+    return other is MarkedDate && date == other.date &&
         color == other.color &&
         textStyle == other.textStyle &&
         id == other.id;

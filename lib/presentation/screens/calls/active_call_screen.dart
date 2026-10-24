@@ -26,6 +26,8 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
     final status = switch (call.status) {
       CallStatus.dialing => 'Calling',
       CallStatus.held => 'On hold',
+      CallStatus.incoming =>
+        call.hasWaitingCall ? 'Call waiting' : 'Incoming call',
       CallStatus.ended => 'Call ended',
       _ => 'Connected',
     };
@@ -146,22 +148,19 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
                   selected: _showKeypad,
                   onPressed: () => setState(() => _showKeypad = !_showKeypad),
                 ),
-                _CallAction(
-                  icon: call.participants.length > 1
-                      ? Icons.swap_calls_rounded
-                      : call.isHeld
-                      ? Icons.play_arrow_rounded
-                      : Icons.pause_rounded,
-                  label: call.participants.length > 1
-                      ? 'Swap'
-                      : call.isHeld
-                      ? 'Resume'
-                      : 'Hold',
-                  selected: call.isHeld,
-                  selectedColor: AGLDemoColors.yellowColor,
-                  onPressed: notifier.toggleHold,
-                ),
-                if (call.participants.length > 1)
+                if (call.canSwap)
+                  _CallAction(
+                    icon: Icons.swap_calls_rounded,
+                    label: 'Swap',
+                    onPressed: notifier.swapCalls,
+                  ),
+                if (call.canSwap)
+                  _CallAction(
+                    icon: Icons.call_end_rounded,
+                    label: 'End & swap',
+                    onPressed: notifier.releaseAndSwap,
+                  ),
+                if (call.canMerge)
                   _CallAction(
                     icon: Icons.call_merge_rounded,
                     label: 'Merge',
@@ -253,6 +252,7 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
           key: const ValueKey('in-call-keypad'),
           keyPrefix: 'dtmf-key',
           onKeyPressed: (digit) {
+            if (ref.read(callStateProvider).busy) return;
             setState(() => _dtmfDigits += digit);
             ref.read(callStateProvider.notifier).sendTones(digit);
           },
@@ -262,7 +262,7 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
   }
 }
 
-class _CallAction extends StatelessWidget {
+class _CallAction extends ConsumerWidget {
   const _CallAction({
     required this.icon,
     required this.label,
@@ -280,10 +280,13 @@ class _CallAction extends StatelessWidget {
   final Color? fillColor;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final call = ref.watch(callStateProvider);
+    final enabled = call.connected && !call.busy;
     final color = fillColor ?? selectedColor;
     return Semantics(
       button: true,
+      enabled: enabled,
       selected: selected,
       label: label,
       child: SizedBox(
@@ -294,7 +297,7 @@ class _CallAction extends StatelessWidget {
             SizedBox.square(
               dimension: 96,
               child: ElevatedButton(
-                onPressed: onPressed,
+                onPressed: enabled ? onPressed : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                       fillColor ??

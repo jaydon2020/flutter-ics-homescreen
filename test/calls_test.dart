@@ -67,6 +67,23 @@ class _TestCallNotifier extends CallStateNotifier {
 }
 
 class _ActiveCallNotifier extends CallStateNotifier {
+  final commands = <String>[];
+  CallState get current => state;
+  void publish(CallState next) => state = next;
+  @override
+  Future<void> swapCalls() async => commands.add('swap');
+  @override
+  Future<void> releaseAndSwap() async => commands.add('releaseAndSwap');
+  @override
+  Future<void> createMultiparty() async => commands.add('merge');
+  @override
+  Future<void> holdAndAnswer() async => commands.add('holdAndAnswer');
+  @override
+  Future<void> releaseAndAnswer() async => commands.add('releaseAndAnswer');
+  @override
+  Future<void> acceptCall() async => commands.add('answer');
+  @override
+  Future<void> rejectCall() async => commands.add('decline');
   @override
   CallState build() => const CallState(
     status: CallStatus.active,
@@ -89,13 +106,11 @@ class _ActiveCallNotifier extends CallStateNotifier {
   );
 
   @override
-  Future<void> sendTones(String tones) async {}
+  Future<void> sendTones(String tones) async => commands.add('tones:$tones');
   @override
-  Future<void> toggleMute() async {}
+  Future<void> toggleMute() async => commands.add('mute');
   @override
-  Future<void> toggleHold() async {}
-  @override
-  Future<void> endCall() async {}
+  Future<void> endCall() async => commands.add('end');
 }
 
 void main() {
@@ -105,6 +120,7 @@ void main() {
     Size size = const Size(1080, 1920),
     bool active = false,
     bool manyContacts = false,
+    _ActiveCallNotifier? callNotifier,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -119,7 +135,11 @@ void main() {
                 : _TestPhoneDataNotifier.new,
           ),
           callStateProvider.overrideWith(
-            active ? _ActiveCallNotifier.new : _TestCallNotifier.new,
+            callNotifier != null
+                ? () => callNotifier
+                : active
+                ? _ActiveCallNotifier.new
+                : _TestCallNotifier.new,
           ),
         ],
         child: MaterialApp(
@@ -132,6 +152,132 @@ void main() {
     );
     await tester.pump();
   }
+
+  testWidgets('single call controls match commands and disable while busy', (
+    tester,
+  ) async {
+    final notifier = _ActiveCallNotifier();
+    await show(tester, const ActiveCallScreen(), callNotifier: notifier);
+    expect(find.text('Hold'), findsNothing);
+    expect(find.text('Resume'), findsNothing);
+    expect(find.text('Swap'), findsNothing);
+    await tester.tap(find.byIcon(Icons.mic_rounded));
+    await tester.tap(find.byIcon(Icons.dialpad_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('dtmf-key-5')));
+    await tester.tap(find.byIcon(Icons.call_end_rounded));
+    expect(notifier.commands, ['mute', 'tones:5', 'end']);
+    notifier.publish(
+      notifier.current.copyWith(busy: true, error: 'Command failed'),
+    );
+    await tester.pump();
+    expect(find.text('Command failed'), findsOneWidget);
+    for (final button in tester.widgetList<ElevatedButton>(
+      find.byType(ElevatedButton),
+    )) {
+      expect(button.onPressed, isNull);
+    }
+    await tester.tap(find.byKey(const ValueKey('dtmf-key-5')));
+    expect(notifier.commands, ['mute', 'tones:5', 'end']);
+  });
+
+  testWidgets('active and held calls expose swap, release and merge', (
+    tester,
+  ) async {
+    final notifier = _ActiveCallNotifier();
+    await show(tester, const ActiveCallScreen(), callNotifier: notifier);
+    notifier.publish(
+      notifier.current.copyWith(
+        participants: [
+          ...notifier.current.participants,
+          const CallParticipant(
+            id: 'held',
+            name: 'Other caller',
+            number: '456',
+            status: CallStatus.held,
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.swap_calls_rounded));
+    await tester.tap(find.byIcon(Icons.call_merge_rounded));
+    await tester.tap(find.byIcon(Icons.call_end_rounded).first);
+    expect(notifier.commands, ['swap', 'merge', 'releaseAndSwap']);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in [480.0, 1280.0]) {
+    testWidgets('waiting call offers explicit answer choices at width $width', (
+      tester,
+    ) async {
+      final notifier = _ActiveCallNotifier();
+      await show(
+        tester,
+        const Stack(children: [IncomingCallOverlay()]),
+        size: Size(width, 720),
+        callNotifier: notifier,
+      );
+      notifier.publish(
+        notifier.current.copyWith(
+          status: CallStatus.incoming,
+          participants: [
+            ...notifier.current.participants,
+            const CallParticipant(
+              id: 'waiting',
+              name: 'Waiting caller',
+              number: '456',
+              status: CallStatus.incoming,
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Hold & answer'));
+      await tester.tap(find.text('End & answer'));
+      await tester.tap(find.byKey(const ValueKey('incoming-decline')));
+      await tester.tap(find.byKey(const ValueKey('incoming-answer')));
+      expect(notifier.commands, [
+        'holdAndAnswer',
+        'releaseAndAnswer',
+        'decline',
+        'holdAndAnswer',
+      ]);
+      notifier.publish(notifier.current.copyWith(busy: true));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('incoming-answer')));
+      expect(notifier.commands, hasLength(4));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('single incoming call answers without a waiting operation', (
+    tester,
+  ) async {
+    final notifier = _ActiveCallNotifier();
+    await show(
+      tester,
+      const Stack(children: [IncomingCallOverlay()]),
+      callNotifier: notifier,
+    );
+    notifier.publish(
+      notifier.current.copyWith(
+        status: CallStatus.incoming,
+        participants: const [
+          CallParticipant(
+            id: 'incoming',
+            name: 'Caller',
+            number: '456',
+            status: CallStatus.incoming,
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Hold & answer'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('incoming-answer')));
+    expect(notifier.commands, ['answer']);
+  });
 
   testWidgets('Phone exposes Recents Contacts and Dial with stable keypad', (
     tester,

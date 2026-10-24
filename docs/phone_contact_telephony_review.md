@@ -136,3 +136,52 @@ multiple homescreen instances sharing the same user directory.
 Verdict: The reviewed reconnect and persistence paths are covered by automated
 tests. Actual PBAP permissions, vendor counter behavior, HFP call control, and
 SCO audio routing must still be checked on the AGL target with a real phone.
+
+## Application call controls
+
+The UI exposes Dial, Answer, Decline, End call, DTMF and microphone mute.
+For a waiting call alongside an active or held call, the incoming banner offers
+**Hold & answer** and **End & answer**. Its main Answer button also holds the
+existing call before answering. Decline targets only the incoming call.
+For active plus held calls, the call screen offers **Swap**, **End & swap**,
+and **Merge** (when the participants are not already marked multiparty).
+A single call has no Hold/Resume control: the native API does not provide a
+single-call hold operation. These topology checks do not imply that every
+phone supports every operation; service errors remain visible to the user.
+
+Commands reject overlapping taps until completion, even if a native snapshot
+arrives during the request. Controls indicate their disabled state. Nullable
+gateway/audio snapshot properties replace previous values, including clearing
+removed transport fields. Duration resets when the primary call ID changes.
+
+### Internal audio and gateway APIs
+
+The following methods intentionally have no dedicated user control:
+
+- `setSpeakerVolume` and `setMicrophoneVolume` are native HFP gain setters
+  (0–15). Mute uses the microphone setter and restores its prior nonzero gain.
+  A speaker gain setter does not transfer audio between the phone and vehicle.
+  `toggleSpeaker` is an internal gain convenience, not a speakerphone routing UI.
+- `activateTransport` requests SCO activation automatically when a call becomes
+  active. It remains available internally for integration and diagnostics.
+- `setRejectSco` is a transport policy setter for integration and diagnostics;
+  it is not a call-decline action and is not exposed to drivers.
+- `hangupAll` is a gateway operation used internally when no individual call ID
+  is available. The End call control normally targets the displayed call.
+
+Notifier tests assert every backend command's arguments, failure recovery,
+duplicate Dial/Answer/Hangup handling, waiting and held-call topology, mute
+restoration, transport removal, primary call identity changes, service retry,
+and stale completion isolation. Widget tests exercise call controls, waiting
+choices at compact and landscape widths, busy states and error display.
+Storage tests use a fresh local gRPC database per test and check namespace
+isolation and per-user preferences across provider restart. They never destroy
+an installed service's database.
+
+CI runs `flutter analyze --no-fatal-infos` and the entire `flutter test` suite.
+Errors and warnings fail analysis; existing informational style/deprecation
+notices remain visible. The workflow is `.github/workflows/flutter.yml`.
+Repository administrators must require its `analyze-and-test` check in branch
+protection to block merges when it fails; a workflow file alone cannot set that
+server-side policy. Real-phone call waiting, conference behavior and SCO audio
+still require AGL target verification.

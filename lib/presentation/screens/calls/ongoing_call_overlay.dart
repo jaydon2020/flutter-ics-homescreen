@@ -151,7 +151,7 @@ class OngoingCallOverlay extends ConsumerWidget {
                       ? Icons.mic_off_rounded
                       : Icons.mic_rounded,
                   selected: call.isMuted,
-                  onPressed: call.status == CallStatus.dialing
+                  onPressed: call.busy || call.status == CallStatus.dialing
                       ? null
                       : notifier.toggleMute,
                 ),
@@ -161,7 +161,7 @@ class OngoingCallOverlay extends ConsumerWidget {
                   label: 'End call',
                   icon: Icons.call_end_rounded,
                   color: AGLDemoColors.callDangerColor,
-                  onPressed: notifier.endCall,
+                  onPressed: call.busy ? null : notifier.endCall,
                 ),
               ],
             ),
