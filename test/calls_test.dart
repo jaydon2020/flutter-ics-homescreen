@@ -50,6 +50,8 @@ class _ManyContactsPhoneDataNotifier extends _TestPhoneDataNotifier {
 }
 
 class _TestCallNotifier extends CallStateNotifier {
+  String? dialedNumber;
+  String? dialedName;
   @override
   CallState build() => const CallState(
     status: CallStatus.idle,
@@ -63,7 +65,10 @@ class _TestCallNotifier extends CallStateNotifier {
   );
 
   @override
-  Future<void> startCall(String number, {String? name}) async {}
+  Future<void> startCall(String number, {String? name}) async {
+    dialedNumber = number;
+    dialedName = name;
+  }
 }
 
 class _ActiveCallNotifier extends CallStateNotifier {
@@ -120,7 +125,7 @@ void main() {
     Size size = const Size(1080, 1920),
     bool active = false,
     bool manyContacts = false,
-    _ActiveCallNotifier? callNotifier,
+    CallStateNotifier? callNotifier,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -300,6 +305,46 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('dial-key-1'))).height,
       greaterThanOrEqualTo(88),
     );
+  });
+
+  testWidgets('Dial suggests a number match and calls with its contact name', (
+    tester,
+  ) async {
+    final notifier = _TestCallNotifier();
+    await show(tester, const CallsPage(), callNotifier: notifier);
+    await tester.tap(find.byKey(const ValueKey('dial-key-6')));
+    await tester.tap(find.byKey(const ValueKey('dial-key-0')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('dial-contact-suggestions')), findsOne);
+    expect(find.text('Aisha Rahman'), findsOne);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('dial-contact-suggestions')),
+        matching: find.text('+60 12-345 6789'),
+      ),
+      findsOne,
+    );
+    await tester.tap(find.text('Aisha Rahman'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('dialed-number')), findsOne);
+    await tester.tap(find.byKey(const ValueKey('dial-call')));
+    expect(notifier.dialedNumber, '+60 12-345 6789');
+    expect(notifier.dialedName, 'Aisha Rahman');
+  });
+
+  testWidgets('Dial suggestions fit 1280x720 automotive landscape', (
+    tester,
+  ) async {
+    await show(tester, const CallsPage(), size: const Size(1280, 720));
+    final six = find.byKey(const ValueKey('dial-key-6'));
+    final zero = find.byKey(const ValueKey('dial-key-0'));
+    await tester.ensureVisible(six);
+    await tester.tap(six);
+    await tester.ensureVisible(zero);
+    await tester.tap(zero);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('dial-contact-suggestions')), findsOne);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Contacts and Recents use full-width automotive rows', (

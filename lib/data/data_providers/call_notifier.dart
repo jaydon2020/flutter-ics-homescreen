@@ -24,6 +24,8 @@ class CallStateNotifier extends Notifier<CallState> {
   bool _disposed = false;
   bool _commandInFlight = false;
   String? _requestedAddress;
+  String? _pendingDialName;
+  String? _pendingDialNumber;
   Future<void> _lifecycle = Future.value();
 
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
@@ -71,6 +73,8 @@ class CallStateNotifier extends Notifier<CallState> {
   Future<void> _connect(String address) async {
     final generation = ++_generation;
     _commandInFlight = false;
+    _pendingDialName = null;
+    _pendingDialNumber = null;
     _requestedAddress = address;
     state = const CallState.initial().copyWith(
       deviceAddress: address,
@@ -128,6 +132,8 @@ class CallStateNotifier extends Notifier<CallState> {
   Future<void> _disconnect() async {
     ++_generation;
     _commandInFlight = false;
+    _pendingDialName = null;
+    _pendingDialNumber = null;
     _requestedAddress = null;
     state = const CallState.initial();
     final task = _lifecycle.then((_) => _disposeBackend());
@@ -175,6 +181,10 @@ class CallStateNotifier extends Notifier<CallState> {
     final nextStatus = primary == null
         ? CallStatus.idle
         : _mapStatus(primary.state);
+    if (primary == null && state.hasCall) {
+      _pendingDialName = null;
+      _pendingDialNumber = null;
+    }
     final primaryChanged = primary?.id != state.activeCallId;
     if (primaryChanged) {
       _durationTimer?.cancel();
@@ -258,6 +268,14 @@ class CallStateNotifier extends Notifier<CallState> {
   String _displayName(TelephonyCallInfo call) {
     if (call.name.trim().isNotEmpty) return call.name;
     final normalized = normalizePhoneNumber(call.number);
+    if ((call.state == PipeWireCallState.dialing ||
+            call.state == PipeWireCallState.alerting ||
+            call.state == PipeWireCallState.active ||
+            call.state == PipeWireCallState.held) &&
+        normalized == _pendingDialNumber &&
+        _pendingDialName != null) {
+      return _pendingDialName!;
+    }
     final phone = ref.read(phoneDataProvider);
     final owner = phone.contactsAddress;
     final address = state.deviceAddress;
@@ -277,8 +295,39 @@ class CallStateNotifier extends Notifier<CallState> {
         (call.number.isEmpty ? 'Unknown caller' : call.number);
   }
 
-  Future<void> startCall(String number, {String? name}) =>
-      _run((backend, address) => backend.dial(address, number));
+  Future<void> startCall(String number, {String? name}) async {
+    final resolvedName = name?.trim();
+    _pendingDialName = resolvedName == null || resolvedName.isEmpty
+        ? _contactName(number)
+        : resolvedName;
+    _pendingDialNumber = normalizePhoneNumber(number);
+    await _run((backend, address) => backend.dial(address, number));
+    if (state.error != null && state.status == CallStatus.idle) {
+      _pendingDialName = null;
+      _pendingDialNumber = null;
+    }
+  }
+
+  String? _contactName(String number) {
+    final phone = ref.read(phoneDataProvider);
+    final address = state.deviceAddress;
+    if (address == null ||
+        phone.contactsAddress == null ||
+        _normalizeAddress(phone.contactsAddress!) !=
+            _normalizeAddress(address)) {
+      return null;
+    }
+    final normalized = normalizePhoneNumber(number);
+    return phone.contacts
+        .where(
+          (contact) => contact.numbers.any(
+            (candidate) => normalizePhoneNumber(candidate) == normalized,
+          ),
+        )
+        .map((contact) => contact.name)
+        .firstOrNull;
+  }
+
   Future<void> acceptCall() async {
     if (state.hasWaitingCall) return holdAndAnswer();
     final id = _incomingCallId;

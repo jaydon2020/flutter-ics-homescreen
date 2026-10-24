@@ -84,6 +84,7 @@ class _CallsPageState extends ConsumerState<CallsPage> {
                         ),
                         _PhoneSection.dial => _DialView(
                           number: _number,
+                          contacts: phone.contacts,
                           landscape: landscape,
                           enabled: call.connected && !call.busy,
                           onDigit: (digit) {
@@ -92,6 +93,8 @@ class _CallsPageState extends ConsumerState<CallsPage> {
                             }
                           },
                           onClear: () => setState(() => _number = ''),
+                          onSelectNumber: (number) =>
+                              setState(() => _number = number),
                           onDelete: () {
                             if (_number.isNotEmpty) {
                               setState(
@@ -519,21 +522,30 @@ class _ContactsViewState extends ConsumerState<_ContactsView> {
 class _DialView extends ConsumerWidget {
   const _DialView({
     required this.number,
+    required this.contacts,
     required this.landscape,
     required this.enabled,
     required this.onDigit,
     required this.onClear,
+    required this.onSelectNumber,
     required this.onDelete,
   });
   final String number;
+  final List<PhoneContact> contacts;
   final bool landscape;
   final bool enabled;
   final ValueChanged<String> onDigit;
   final VoidCallback onClear;
+  final ValueChanged<String> onSelectNumber;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final matches = _matchingContactNumbers(contacts, number);
+    final normalized = _dialMatchNumber(number);
+    final exactMatch = matches
+        .where((match) => _dialMatchNumber(match.number) == normalized)
+        .firstOrNull;
     final numberArea = SizedBox(
       height: 64,
       child: Center(
@@ -558,6 +570,99 @@ class _DialView extends ConsumerWidget {
               ),
       ),
     );
+    final suggestions = matches.isEmpty
+        ? const SizedBox.shrink()
+        : ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: landscape ? 240 : 180),
+            child: ListView.separated(
+              key: const ValueKey('dial-contact-suggestions'),
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: matches.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final match = matches[index];
+                return Semantics(
+                  button: true,
+                  excludeSemantics: true,
+                  label: 'Use ${match.contact.name}, ${match.number}',
+                  child: Material(
+                    color: AGLDemoColors.callControlColor,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      key: ValueKey(
+                        'dial-suggestion-${match.contact.id}-${match.number}',
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => onSelectNumber(match.number),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 64),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor:
+                                    AGLDemoColors.backgroundInsetColor,
+                                backgroundImage: match.contact.photo == null
+                                    ? null
+                                    : MemoryImage(match.contact.photo!),
+                                child: match.contact.photo == null
+                                    ? Text(
+                                        match.contact.initials,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      match.contact.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      match.number,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AGLDemoColors.periwinkleColor,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.north_west_rounded,
+                                color: AGLDemoColors.jordyBlueColor,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
     final keypad = PhoneKeypad(
       key: const ValueKey('dial-keypad'),
       keyPrefix: 'dial-key',
@@ -577,11 +682,12 @@ class _DialView extends ConsumerWidget {
             child: SizedBox.square(
               dimension: 76,
               child: ElevatedButton(
+                key: const ValueKey('dial-call'),
                 onPressed: !enabled || number.isEmpty
                     ? null
                     : () => ref
                           .read(callStateProvider.notifier)
-                          .startCall(number),
+                          .startCall(number, name: exactMatch?.contact.name),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AGLDemoColors.greenColor,
                   disabledBackgroundColor: AGLDemoColors.callControlColor,
@@ -607,7 +713,15 @@ class _DialView extends ConsumerWidget {
     if (landscape) {
       return Row(
         children: [
-          Expanded(child: numberArea),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                numberArea,
+                Flexible(child: suggestions),
+              ],
+            ),
+          ),
           const SizedBox(width: 40),
           Expanded(
             flex: 2,
@@ -625,7 +739,8 @@ class _DialView extends ConsumerWidget {
       child: Column(
         children: [
           numberArea,
-          const SizedBox(height: 12),
+          suggestions,
+          const SizedBox(height: 4),
           keypad,
           const SizedBox(height: 16),
           actions,
@@ -633,6 +748,45 @@ class _DialView extends ConsumerWidget {
       ),
     );
   }
+}
+
+typedef _DialMatch = ({PhoneContact contact, String number});
+
+String _dialMatchNumber(String value) =>
+    normalizePhoneNumber(value).replaceFirst('+', '');
+
+List<_DialMatch> _matchingContactNumbers(
+  List<PhoneContact> contacts,
+  String input,
+) {
+  final query = _dialMatchNumber(input);
+  if (query.length < 2) return const [];
+  final matches = <_DialMatch>[];
+  for (final contact in contacts) {
+    for (final number in contact.numbers) {
+      if (_dialMatchNumber(number).contains(query)) {
+        matches.add((contact: contact, number: number));
+      }
+    }
+  }
+  matches.sort((left, right) {
+    final leftNumber = _dialMatchNumber(left.number);
+    final rightNumber = _dialMatchNumber(right.number);
+    final leftRank = leftNumber == query
+        ? 0
+        : leftNumber.startsWith(query)
+        ? 1
+        : 2;
+    final rightRank = rightNumber == query
+        ? 0
+        : rightNumber.startsWith(query)
+        ? 1
+        : 2;
+    return leftRank != rightRank
+        ? leftRank.compareTo(rightRank)
+        : left.contact.name.compareTo(right.contact.name);
+  });
+  return matches.take(3).toList(growable: false);
 }
 
 class _PhoneRow extends StatelessWidget {

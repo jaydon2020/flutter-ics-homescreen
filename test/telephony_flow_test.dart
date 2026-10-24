@@ -481,6 +481,49 @@ void main() {
     },
   );
 
+  test('outgoing call keeps the selected contact name while dialing', () async {
+    final backend = _Telephony('AA:BB');
+    backends.add(backend);
+    publish('AA:BB');
+    await waitUntil(() => state().connected);
+    await container
+        .read(callStateProvider.notifier)
+        .startCall('+6012345', name: 'Aisha');
+    backend.emit(
+      const TelephonySnapshot(
+        clientState: PipeWireTelephonyClientState.ready,
+        gatewayAddress: 'AA:BB',
+        calls: [
+          TelephonyCallInfo(
+            id: '/call/outgoing',
+            number: '+6012345',
+            name: '',
+            state: PipeWireCallState.dialing,
+            multiparty: false,
+          ),
+        ],
+      ),
+    );
+    expect(state().name, 'Aisha');
+    expect(state().participants.single.name, 'Aisha');
+    backend.emit(
+      const TelephonySnapshot(
+        clientState: PipeWireTelephonyClientState.ready,
+        gatewayAddress: 'AA:BB',
+        calls: [
+          TelephonyCallInfo(
+            id: '/call/outgoing',
+            number: '+6012345',
+            name: '',
+            state: PipeWireCallState.active,
+            multiparty: false,
+          ),
+        ],
+      ),
+    );
+    expect(state().name, 'Aisha');
+  });
+
   test(
     'caller names only come from the connected phone contact owner',
     () async {
