@@ -64,11 +64,11 @@ dependencies:
   bluez_obex_native:
     git:
       url: https://github.com/jaydon2020/bluez_obex_native.git
-      ref: a6d99a4ee5689dce1d531d5b49970200ab10fef6
+      ref: d177eb1f6b090509cb76a2215e31b02b1093022b
   pipewire_telephony_native:
     git:
       url: https://github.com/jaydon2020/pipewire_telephony_native.git
-      ref: 56cee384fd72bd8e5bc16402b73c5cb506ae56b4
+      ref: 14071e2b1796f77457ad875b562772a302d62cdc
 
 dependency_overrides:
   code_assets: 1.1.0
