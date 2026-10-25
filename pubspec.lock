@@ -553,11 +553,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "4f8b9d1eea06151199f72d5666dc77fe403575bb"
-      resolved-ref: "4f8b9d1eea06151199f72d5666dc77fe403575bb"
+      ref: "92dc974853153f0534e9e2c13c9493b352b0bf76"
+      resolved-ref: "92dc974853153f0534e9e2c13c9493b352b0bf76"
       url: "https://github.com/jaydon2020/pipewire_telephony_native.git"
     source: git
-    version: "0.0.1"
+    version: "0.1.0"
   platform:
     dependency: transitive
     description:
