@@ -1,8 +1,21 @@
+import 'dart:convert';
 import 'package:flutter_ics_homescreen/data/models/phone_models.dart';
 import 'package:flutter_ics_homescreen/data/services/phone_parsers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final body in ['Hello', 'Café 🚗\nSecond line']) {
+    test('bMessage LENGTH includes UTF-8 content and its frame: $body', () {
+      final wire = buildBMessage(recipient: '+60123', body: body);
+      final declared = int.parse(
+        RegExp(r'LENGTH:(\d+)').firstMatch(wire)!.group(1)!,
+      );
+      final start = wire.indexOf('BEGIN:MSG\r\n');
+      final end = wire.indexOf('END:BBODY');
+      expect(declared, utf8.encode(wire.substring(start, end)).length);
+      if (body == 'Hello') expect(declared, 27);
+    });
+  }
   test('normalizes international phone numbers', () {
     expect(normalizePhoneNumber('+60 (12) 345-6789'), '+60123456789');
     expect(normalizePhoneNumber('03 1234 5678'), '0312345678');

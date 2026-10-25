@@ -23,6 +23,8 @@ class CallStateNotifier extends Notifier<CallState> {
   int _generation = 0;
   bool _disposed = false;
   bool _commandInFlight = false;
+  int? _activatingTransport;
+  int? _retryTransportActivation;
   String? _requestedAddress;
   String? _pendingDialName;
   String? _pendingDialNumber;
@@ -194,19 +196,20 @@ class CallStateNotifier extends Notifier<CallState> {
         (primaryChanged || state.status != CallStatus.active)) {
       _activeSince ??= DateTime.now();
       _startDurationTimer();
-      if (address != null) {
-        final generation = _generation;
-        unawaited(
-          _backend?.activateTransport(address).catchError((Object error) {
-            if (_isCurrent(generation)) _operationFailed(error);
-          }),
-        );
-      }
     } else if (nextStatus != CallStatus.active &&
         nextStatus != CallStatus.held) {
       _durationTimer?.cancel();
       if (primary == null) _activeSince = null;
     }
+    final transport = snapshot.transportState;
+    final activateAudio =
+        calls.any((call) => call.state == PipeWireCallState.active) &&
+        transport != null &&
+        transport != PipeWireTransportState.active &&
+        transport != PipeWireTransportState.pending &&
+        snapshot.rejectSco != true &&
+        (!state.participants.any((call) => call.status == CallStatus.active) ||
+            state.transportState != transport.name);
     final participants = calls
         .map(
           (call) => CallParticipant(
@@ -246,6 +249,37 @@ class CallStateNotifier extends Notifier<CallState> {
     }
     if ((snapshot.speakerVolume ?? 0) > 0) {
       _savedSpeakerVolume = snapshot.speakerVolume!;
+    }
+    if (activateAudio && address != null) {
+      unawaited(_activateCallTransport(address, _generation));
+    }
+  }
+
+  Future<void> _activateCallTransport(String address, int generation) async {
+    if (_activatingTransport == generation) {
+      _retryTransportActivation = generation;
+      return;
+    }
+    _activatingTransport = generation;
+    try {
+      await _backend?.activateTransport(address);
+    } catch (error) {
+      if (_isCurrent(generation)) _operationFailed(error);
+    } finally {
+      if (_activatingTransport == generation) _activatingTransport = null;
+      if (_retryTransportActivation == generation) {
+        _retryTransportActivation = null;
+        if (_isCurrent(generation) &&
+            state.participants.any(
+              (call) => call.status == CallStatus.active,
+            ) &&
+            state.transportState != null &&
+            state.transportState != 'active' &&
+            state.transportState != 'pending' &&
+            state.rejectSco != true) {
+          unawaited(_activateCallTransport(address, generation));
+        }
+      }
     }
   }
 
@@ -296,13 +330,19 @@ class CallStateNotifier extends Notifier<CallState> {
   }
 
   Future<void> startCall(String number, {String? name}) async {
-    final resolvedName = name?.trim();
-    _pendingDialName = resolvedName == null || resolvedName.isEmpty
-        ? _contactName(number)
-        : resolvedName;
-    _pendingDialNumber = normalizePhoneNumber(number);
-    await _run((backend, address) => backend.dial(address, number));
-    if (state.error != null && state.status == CallStatus.idle) {
+    final generation = _generation;
+    await _run((backend, address) {
+      final resolvedName = name?.trim();
+      _pendingDialName = resolvedName == null || resolvedName.isEmpty
+          ? _contactName(number)
+          : resolvedName;
+      _pendingDialNumber = normalizePhoneNumber(number);
+      return backend.dial(address, number);
+    });
+    if (_isCurrent(generation) &&
+        state.error != null &&
+        state.status == CallStatus.idle &&
+        !_commandInFlight) {
       _pendingDialName = null;
       _pendingDialNumber = null;
     }

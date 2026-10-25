@@ -28,6 +28,7 @@ PhoneMessage parseBMessage({
 
 String buildBMessage({required String recipient, required String body}) {
   final safeBody = body.replaceAll('\r', '').replaceAll('\n', '\r\n');
+  final message = 'BEGIN:MSG\r\n$safeBody\r\nEND:MSG\r\n';
   return 'BEGIN:BMSG\r\n'
       'VERSION:1.0\r\n'
       'STATUS:UNREAD\r\n'
@@ -39,10 +40,8 @@ String buildBMessage({required String recipient, required String body}) {
       'END:VCARD\r\n'
       'BEGIN:BBODY\r\n'
       'CHARSET:UTF-8\r\n'
-      'LENGTH:${utf8.encode(safeBody).length}\r\n'
-      'BEGIN:MSG\r\n'
-      '$safeBody\r\n'
-      'END:MSG\r\n'
+      'LENGTH:${utf8.encode(message).length}\r\n'
+      '$message'
       'END:BBODY\r\n'
       'END:BENV\r\n'
       'END:BMSG\r\n';

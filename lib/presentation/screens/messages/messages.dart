@@ -506,10 +506,20 @@ class _ChatView extends ConsumerWidget {
                       : () async {
                           final text = composer.text.trim();
                           if (text.isEmpty) return;
-                          await ref
-                              .read(phoneDataProvider.notifier)
-                              .sendMessage(address, text);
-                          composer.clear();
+                          final owner = data.deviceAddress;
+                          try {
+                            await ref
+                                .read(phoneDataProvider.notifier)
+                                .sendMessage(address, text);
+                            if (context.mounted &&
+                                ref.read(phoneDataProvider).deviceAddress ==
+                                    owner &&
+                                composer.text.trim() == text) {
+                              composer.clear();
+                            }
+                          } catch (_) {
+                            // The notifier shows the failure; keep the draft for retry.
+                          }
                         },
                   icon: data.busy
                       ? const SizedBox.square(

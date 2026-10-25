@@ -74,6 +74,7 @@ class NativeObexBackend implements ObexBackend {
   DBusClient? _sessionBus;
   String? _messageFolder;
   int _generation = 0;
+  Future<void> _mapOperations = Future.value();
 
   BlueZObexClient get _connected =>
       _client ?? (throw StateError('OBEX is not connected'));
@@ -203,10 +204,10 @@ class NativeObexBackend implements ObexBackend {
   Future<BlueZObexMessageAccessProps> messageAccessProperties() =>
       _messageAccess.properties();
   @override
-  Future<void> setMessageFolder(String folder) async {
+  Future<void> setMessageFolder(String folder) => _queueMap(() async {
     await _messageAccess.setFolder(folder);
     _messageFolder = folder;
-  }
+  });
 
   @override
   Future<List<BlueZObexMessageFolder>> listMessageFolders({
@@ -219,7 +220,45 @@ class NativeObexBackend implements ObexBackend {
   Future<List<BlueZObexMessageProps>> listMessages(
     String folder, {
     Map<String, Object?> filters = const {},
-  }) => _listMessagesOverDBus(folder, filters);
+  }) => _withMessageFolder(
+    folder,
+    (child) => _listMessagesOverDBus(child, filters),
+  );
+
+  Future<T> _queueMap<T>(Future<T> Function() operation) {
+    final generation = _generation;
+    final task = _mapOperations.then((_) {
+      if (generation != _generation) {
+        throw StateError('Phone data connection was cancelled');
+      }
+      return operation();
+    });
+    _mapOperations = task.then((_) {}, onError: (Object _, StackTrace __) {});
+    return task;
+  }
+
+  Future<T> _withMessageFolder<T>(
+    String folder,
+    Future<T> Function(String child) operation,
+  ) => _queueMap(() async {
+    final generation = _generation;
+    final normalized = folder.replaceAll(RegExp(r'^/+|/+$'), '');
+    final separator = normalized.lastIndexOf('/');
+    final child = separator < 0
+        ? normalized
+        : normalized.substring(separator + 1);
+    if (separator >= 0) {
+      final parent = '/${normalized.substring(0, separator)}';
+      if (parent != _messageFolder) {
+        await _messageAccess.setFolder(parent);
+        if (generation != _generation) {
+          throw StateError('Phone data connection was cancelled');
+        }
+        _messageFolder = parent;
+      }
+    }
+    return operation(child);
+  });
 
   Future<List<BlueZObexMessageProps>> _listMessagesOverDBus(
     String folder,
@@ -232,22 +271,10 @@ class NativeObexBackend implements ObexBackend {
       name: 'org.bluez.obex',
       path: DBusObjectPath(session.objectPath),
     );
-    final normalized = folder.replaceAll(RegExp(r'^/+|/+$'), '');
-    final separator = normalized.lastIndexOf('/');
-    final child = separator < 0
-        ? normalized
-        : normalized.substring(separator + 1);
-    final parent = separator < 0 ? '' : normalized.substring(0, separator);
-    if (parent.isNotEmpty && parent != _messageFolder) {
-      await object.callMethod('org.bluez.obex.MessageAccess1', 'SetFolder', [
-        DBusString(parent),
-      ]);
-      _messageFolder = parent;
-    }
     final response = await object.callMethod(
       'org.bluez.obex.MessageAccess1',
       'ListMessages',
-      [DBusString(child), _dbusFilters(filters)],
+      [DBusString(folder), _dbusFilters(filters)],
       replySignature: DBusSignature('a{oa{sv}}'),
     );
     final entries = (response.returnValues.single as DBusDict).children;
@@ -311,7 +338,10 @@ class NativeObexBackend implements ObexBackend {
     String sourceFile,
     String folder, {
     Map<String, Object?> args = const {},
-  }) => _messageAccess.pushMessage(sourceFile, folder, args: args);
+  }) => _withMessageFolder(
+    folder,
+    (child) => _messageAccess.pushMessage(sourceFile, child, args: args),
+  );
   @override
   Future<BlueZObexMessageProps> messageProperties(String path) =>
       _connected.message(path).properties();

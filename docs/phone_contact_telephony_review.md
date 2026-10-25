@@ -117,11 +117,12 @@ failed profile access, phone switching, PBAP serialization, selected gateways,
 caller names, service closure, and stale command completions. Existing phone,
 media, and parser tests are also run.
 
-Validation result: focused contact, telephony, and phone UI tests passed,
-including startup without a selected phone, cache misses after switching,
-wrong-owner cache rejection, and caller-name isolation. Analysis of the affected code and
-tests reported only the existing `ProviderScope.parent` deprecation in
-`lib/main.dart`; it reported no new errors or warnings.
+Validation of the release fixes: the complete Flutter suite passed 97 tests.
+`flutter analyze --no-fatal-infos` passed with no errors or warnings; existing
+informational lints remain. A separate private D-Bus check exercised the real
+native OBEX backend, verified absolute folder selection and relative outbox
+sending, and recovered after a rejected listing. That check used a simulated
+service, so it does not establish interoperability with a real phone.
 
 PBAP listings contain only handles and names. On a phone without version
 counters, a number/photo-only edit needs the Refresh contacts action. If both
@@ -138,6 +139,14 @@ tests. Actual PBAP permissions, vendor counter behavior, HFP call control, and
 SCO audio routing must still be checked on the AGL target with a real phone.
 
 ## Application call controls
+
+Release regression fixes additionally preserve MAP bodies and attachments across
+listing refreshes, separate alphabetic senders, keep sends busy independently of
+refreshes, calculate bMessage lengths including framing, and serialize folder
+selection with listing/sending. SCO activation waits for usable transport and
+ignores stale completions after phone switches. Rejected duplicate dials cannot
+change the accepted call's contact name. The native Git pins are recorded in
+the refreshed lockfile. These automated checks do not replace AGL audio tests.
 
 The UI exposes Dial, Answer, Decline, End call, DTMF and microphone mute.
 For a waiting call alongside an active or held call, the incoming banner offers
@@ -162,8 +171,10 @@ The following methods intentionally have no dedicated user control:
   (0–15). Mute uses the microphone setter and restores its prior nonzero gain.
   A speaker gain setter does not transfer audio between the phone and vehicle.
   `toggleSpeaker` is an internal gain convenience, not a speakerphone routing UI.
-- `activateTransport` requests SCO activation automatically when a call becomes
-  active. It remains available internally for integration and diagnostics.
+- `activateTransport` requests SCO activation when an active call has usable
+  transport, including transport that arrives late or is replaced. Pending or
+  active transport and RejectSCO policy suppress duplicate activation. The API
+  remains available internally for integration and diagnostics.
 - `setRejectSco` is a transport policy setter for integration and diagnostics;
   it is not a call-decline action and is not exposed to drivers.
 - `hangupAll` is a gateway operation used internally when no individual call ID

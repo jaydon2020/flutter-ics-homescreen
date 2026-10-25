@@ -26,6 +26,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
   int _generation = 0;
   bool _disposed = false;
   int? _refreshingMessages;
+  int? _sendingMessage;
   String? _requestedAddress;
   bool _requestSession = false;
   CachedPhonebook? _cachedPhonebook;
@@ -489,21 +490,29 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         await backend.listMessages('telecom/msg/sent'),
       ];
       if (!_isCurrent(generation, backend)) return;
-      final messages =
-          results.expand((items) => items).map(_messageFromProps).toList()
-            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      final previous = {
+        for (final message in state.messages) message.id: message,
+      };
+      final messages = results.expand((items) => items).map((props) {
+        final message = _messageFromProps(props);
+        final cached = previous[message.id];
+        return message.copyWith(
+          body: cached?.body,
+          attachmentPath: cached?.attachmentPath,
+        );
+      }).toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
       state = state.copyWith(
         messages: messages,
         conversations: _groupConversations(messages, state.contacts),
         mapAvailable: true,
-        busy: false,
+        busy: _sendingMessage == generation,
         clearError: state.error?.startsWith('Messages unavailable:') ?? false,
       );
     } catch (error) {
       if (!_isCurrent(generation, backend)) return;
       state = state.copyWith(
         mapAvailable: false,
-        busy: false,
+        busy: _sendingMessage == generation,
         error: 'Messages unavailable: ${_friendlyError(error)}',
       );
     } finally {
@@ -543,7 +552,13 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
     final backend = _backend;
     final directory = _temporaryDirectory;
     final generation = _generation;
-    if (backend == null || directory == null || body.trim().isEmpty) return;
+    if (backend == null ||
+        directory == null ||
+        body.trim().isEmpty ||
+        _sendingMessage == generation) {
+      return;
+    }
+    _sendingMessage = generation;
     state = state.copyWith(busy: true, clearError: true);
     try {
       final source = File(
@@ -553,6 +568,7 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
         buildBMessage(recipient: address, body: body.trim()),
         flush: true,
       );
+      if (!_isCurrent(generation, backend)) return;
       final transfer = await backend.pushMessage(
         source.path,
         'telecom/msg/outbox',
@@ -566,14 +582,17 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       if (!_isCurrent(generation, backend)) return;
       await refreshConversations(silent: true);
       if (!_isCurrent(generation, backend)) return;
-      state = state.copyWith(busy: false);
     } catch (error) {
       if (!_isCurrent(generation, backend)) return;
       state = state.copyWith(
-        busy: false,
         error: 'Message not sent: ${_friendlyError(error)}',
       );
       rethrow;
+    } finally {
+      if (_sendingMessage == generation) _sendingMessage = null;
+      if (_isCurrent(generation, backend)) {
+        state = state.copyWith(busy: _refreshingMessages == generation);
+      }
     }
   }
 
@@ -757,7 +776,11 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
   }
 
   void _setError(Object error) {
-    state = state.copyWith(error: _friendlyError(error), busy: false);
+    state = state.copyWith(
+      error: _friendlyError(error),
+      busy:
+          _sendingMessage == _generation || _refreshingMessages == _generation,
+    );
   }
 }
 
@@ -766,7 +789,9 @@ PhoneMessage _messageFromProps(BlueZObexMessageProps props) {
   final address = outgoing ? props.recipientAddress : props.senderAddress;
   final key = props.conversationId != 0
       ? 'conversation:${props.conversationId}'
-      : 'address:${normalizePhoneNumber(address)}';
+      : address.trim().isEmpty
+      ? 'message:${props.objectPath}'
+      : 'address:${_messageAddressKey(address)}';
   return PhoneMessage(
     id: props.objectPath,
     conversationKey: key,
@@ -818,11 +843,11 @@ List<Conversation> _groupConversations(
     final address = latest.direction == PhoneMessageDirection.outgoing
         ? latest.recipientAddress
         : latest.senderAddress;
-    final normalized = normalizePhoneNumber(address);
+    final normalized = _messageAddressKey(address);
     final contact = contacts
         .where(
           (item) => item.numbers.any(
-            (number) => normalizePhoneNumber(number) == normalized,
+            (number) => _messageAddressKey(number) == normalized,
           ),
         )
         .firstOrNull;
@@ -846,6 +871,13 @@ List<Conversation> _groupConversations(
 
 String _friendlyError(Object error) =>
     error.toString().replaceFirst(RegExp(r'^\w+(?:Exception|Error):\s*'), '');
+
+String _messageAddressKey(String address) {
+  final trimmed = address.trim();
+  return RegExp(r'^\+?[\d\s().-]+$').hasMatch(trimmed)
+      ? normalizePhoneNumber(trimmed)
+      : trimmed.toLowerCase();
+}
 
 final phoneDataProvider = NotifierProvider<PhoneDataNotifier, PhoneDataState>(
   PhoneDataNotifier.new,

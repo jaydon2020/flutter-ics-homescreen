@@ -41,6 +41,7 @@ flutter test \
   test/contact_store_test.dart \
   test/phone_parsers_test.dart \
   test/phone_data_notifier_test.dart \
+  test/map_flow_test.dart \
   test/telephony_flow_test.dart \
   test/calls_test.dart \
   --reporter expanded
@@ -99,6 +100,10 @@ $HOME/.local/share/flutter-ics-homescreen/contacts.json
 | MAP-08 | Re-enable message access and retry. | Conversations recover without repairing the phone. |
 | MAP-09 | Switch from phone A to phone B while a message refresh is running. | Late phone-A results are ignored; only phone-B conversations remain visible. |
 | MAP-10 | Trigger an incoming message during a PBAP contact refresh. | Both operations complete without corrupting contacts, recents, or conversations. |
+| MAP-11 | Refresh while a conversation body and attachment are open. | Existing bodies and downloaded attachments remain available while metadata updates. |
+| MAP-12 | Receive SMS from two alphabetic senders, such as BANK and SHOP. | Each sender has a separate conversation and is not confused with a numeric contact. |
+| MAP-13 | Send while an earlier background refresh is pending; tap Send again. | Only one send is accepted; the controls remain busy until that send finishes. |
+| MAP-14 | Reject a send or switch phones before it completes. | Failure keeps the draft available; an old send cannot clear the new phone's draft or state. |
 
 ## Telephony and SCO manual cases
 
@@ -118,6 +123,7 @@ $HOME/.local/share/flutter-ics-homescreen/contacts.json
 | TEL-12 | Make and answer calls on desktop and AGL while monitoring audio. | SCO activates when the call becomes active; audio is bidirectional, uses the expected route, and has no persistent echo or silence. |
 | TEL-13 | Remove SCO transport or disable Bluetooth during a call. | Codec, transport state, and RejectSCO data clear instead of showing stale values. |
 | TEL-14 | Test the phone's supported codecs on AGL. | Each negotiated codec routes stable bidirectional audio and is correctly reported in diagnostics. |
+| TEL-15 | Let SCO transport appear after the call is already active, then remove and recreate it. | Activation waits for usable transport; repeated state updates cannot submit duplicate activation requests. |
 
 ## Result record
 

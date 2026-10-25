@@ -600,6 +600,137 @@ void main() {
     },
   );
 
+  test(
+    'SCO waits for transport and activates once when it becomes usable',
+    () async {
+      final backend = await connect();
+      calls(backend, [call('one', PipeWireCallState.active)]);
+      expect(backend.operations, isEmpty);
+      backend.commandGate = Completer<void>();
+      final ready = TelephonySnapshot(
+        clientState: PipeWireTelephonyClientState.ready,
+        gatewayAddress: 'AA:BB',
+        transportState: PipeWireTransportState.idle,
+        calls: [call('one', PipeWireCallState.active)],
+      );
+      backend.emit(ready);
+      backend.emit(ready);
+      expect(backend.operations, [
+        ['activateTransport', 'AA:BB'],
+      ]);
+      backend.commandGate!.complete();
+      await Future<void>.delayed(Duration.zero);
+      backend.emit(ready);
+      expect(backend.operations, hasLength(1));
+    },
+  );
+
+  test(
+    'a rejected duplicate dial cannot overwrite the first contact name',
+    () async {
+      final backend = await connect();
+      backend.commandGate = Completer<void>();
+      final notifier = container.read(callStateProvider.notifier);
+      final first = notifier.startCall('+60123', name: 'First contact');
+      await notifier.startCall('+60456', name: 'Second contact');
+      backend.emit(
+        const TelephonySnapshot(
+          clientState: PipeWireTelephonyClientState.ready,
+          gatewayAddress: 'AA:BB',
+          calls: [
+            TelephonyCallInfo(
+              id: 'one',
+              number: '+60123',
+              name: '',
+              state: PipeWireCallState.dialing,
+              multiparty: false,
+            ),
+          ],
+        ),
+      );
+      expect(state().name, 'First contact');
+      expect(backend.operations, [
+        ['dial', 'AA:BB', '+60123'],
+      ]);
+      backend.commandGate!.complete();
+      await first;
+    },
+  );
+
+  test(
+    'replaced transport retries after the old activation finishes',
+    () async {
+      final backend = await connect();
+      backend.commandGate = Completer<void>();
+      final ready = TelephonySnapshot(
+        clientState: PipeWireTelephonyClientState.ready,
+        gatewayAddress: 'AA:BB',
+        transportState: PipeWireTransportState.idle,
+        calls: [call('one', PipeWireCallState.active)],
+      );
+      backend.emit(ready);
+      calls(backend, [call('one', PipeWireCallState.active)]);
+      backend.emit(ready);
+      expect(backend.operations, hasLength(1));
+      backend.commandGate!.complete();
+      await waitUntil(() => backend.operations.length == 2);
+      expect(backend.operations, [
+        ['activateTransport', 'AA:BB'],
+        ['activateTransport', 'AA:BB'],
+      ]);
+    },
+  );
+
+  test(
+    'pending or active SCO and RejectSCO policy do not trigger activation',
+    () async {
+      final backend = await connect();
+      for (final transport in [
+        PipeWireTransportState.pending,
+        PipeWireTransportState.active,
+        PipeWireTransportState.idle,
+      ]) {
+        backend.emit(
+          TelephonySnapshot(
+            clientState: PipeWireTelephonyClientState.ready,
+            gatewayAddress: 'AA:BB',
+            transportState: transport,
+            rejectSco: transport == PipeWireTransportState.idle,
+            calls: [call('one', PipeWireCallState.active)],
+          ),
+        );
+      }
+      expect(backend.operations, isEmpty);
+    },
+  );
+
+  test(
+    'late SCO activation failure cannot change the next phone state',
+    () async {
+      final first = await connect();
+      first.commandGate = Completer<void>();
+      first.emit(
+        TelephonySnapshot(
+          clientState: PipeWireTelephonyClientState.ready,
+          gatewayAddress: 'AA:BB',
+          transportState: PipeWireTransportState.idle,
+          calls: [call('one', PipeWireCallState.active)],
+        ),
+      );
+      final second = _Telephony('CC:DD');
+      backends.add(second);
+      publish('CC:DD');
+      await waitUntil(
+        () => state().deviceAddress == 'CC:DD' && state().connected,
+      );
+      first.commandError = StateError('Old SCO activation failed');
+      first.commandGate!.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(state().error, isNull);
+      expect(state().hasCall, isFalse);
+    },
+  );
+
   test('late mute completion cannot change the next phone state', () async {
     final first = _Telephony('AA:BB')..commandGate = Completer<void>();
     final second = _Telephony('CC:DD');
