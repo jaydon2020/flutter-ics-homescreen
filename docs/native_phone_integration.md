@@ -62,12 +62,28 @@ The bootstrap command resolves `bluez_obex_native` from
 `.dart_tool/package_config.json` and initializes its `sdbus-c++` submodule.
 The PipeWire package build hook initializes its own submodule.
 
+For `flutter build linux`, Flutter configures FFI plugin CMake projects before
+running Dart build hooks. The homescreen's Linux CMake setup therefore also
+initializes the pinned PipeWire `sdbus-cpp` submodule when it is missing. Git
+and network access are required for that first initialization; subsequent
+builds reuse the checkout. No separate library-loading script is needed.
+The Linux install rules copy native assets into the bundle's `lib/` directory,
+including the OBEX and PipeWire telephony libraries built by the hooks.
+
 ## AGL cross-build
 
-Build and package both native libraries in the Yocto/SDK recipe. Set
-`SKIP_NATIVE_BUILD=1` for the packages' build hooks and install
-`libpipewire_telephony_native.so` and `libbluez_obex_native.so` in the target
-loader path. Do not use host-built shared objects in the target image.
+Let the Dart build hooks cross-build both native libraries with BitBake's CMake
+toolchain, then install the generated native assets in the Flutter bundle's
+`lib/` directory. Do not use host-built shared objects in the target image.
+
+Flutter 3.38 writes `.dart_tool/flutter_build/*/native_assets.json`. The Yocto
+AOT step must pass a target-correct copy of that manifest to
+`frontend_server_aot` with `--native-assets`; otherwise the installed `.so`
+files exist but `@Native` cannot resolve them. For `flutter-auto`, bundled
+library entries must resolve to the installed bundle directory, for example
+`/usr/share/flutter/flutter_ics_homescreen/3.38.3/release/lib`, rather than
+relative to `/usr/bin/flutter-auto`. No runtime environment variable or
+external loader script is required.
 
 The application checks the user/session bus first and falls back to the system
 bus. This supports host WirePlumber services started as user units while still
