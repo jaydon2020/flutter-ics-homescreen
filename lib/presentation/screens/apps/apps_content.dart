@@ -15,6 +15,8 @@ class _AppsState extends ConsumerState<Apps> {
         context.flow<AppState>().update((next) => AppState.weather);
       } else if (id == "clock") {
         context.flow<AppState>().update((next) => AppState.clock);
+      } else if (id == 'calls' || id == 'phone') {
+        ref.read(appProvider.notifier).update(AppState.phone);
       }
     } else {
       ref.read(appLauncherProvider).startApp(id);
