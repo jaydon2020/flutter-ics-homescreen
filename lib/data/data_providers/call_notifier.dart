@@ -1,0 +1,514 @@
+import 'dart:async';
+
+import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_notifier.dart';
+import 'package:flutter_ics_homescreen/data/data_providers/phone_data_notifier.dart';
+import 'package:flutter_ics_homescreen/data/models/call_state.dart';
+import 'package:flutter_ics_homescreen/data/models/phone_models.dart';
+import 'package:flutter_ics_homescreen/data/services/telephony_backend.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pipewire_telephony_native/pipewire_telephony_native.dart';
+
+final telephonyBackendFactoryProvider =
+    Provider<TelephonyBackend Function(String)>(
+      (ref) => NativeTelephonyBackend.new,
+    );
+
+class CallStateNotifier extends Notifier<CallState> {
+  TelephonyBackend? _backend;
+  StreamSubscription<TelephonySnapshot>? _subscription;
+  Timer? _durationTimer;
+  DateTime? _activeSince;
+  int _savedMicrophoneVolume = 8;
+  int _savedSpeakerVolume = 8;
+  int _generation = 0;
+  bool _disposed = false;
+  bool _commandInFlight = false;
+  int? _activatingTransport;
+  int? _retryTransportActivation;
+  String? _requestedAddress;
+  String? _pendingDialName;
+  String? _pendingDialNumber;
+  Future<void> _lifecycle = Future.value();
+
+  bool _isCurrent(int generation) => !_disposed && generation == _generation;
+
+  @override
+  CallState build() {
+    ref.onDispose(() {
+      _disposed = true;
+      ++_generation;
+      unawaited(_lifecycle.then((_) => _disposeBackend()));
+    });
+    ref.listen(bluetoothProvider, (previous, next) => _syncBluetooth(next));
+    ref.listen(
+      phoneDataProvider.select(
+        (phone) => (phone.contactsAddress, phone.contacts),
+      ),
+      (_, __) {
+        final backend = _backend;
+        if (!_disposed && backend != null) _applySnapshot(backend.current);
+      },
+    );
+    Future.microtask(() {
+      if (!_disposed) _syncBluetooth(ref.read(bluetoothProvider));
+    });
+    return const CallState.initial();
+  }
+
+  void _syncBluetooth(BluetoothState bluetooth) {
+    if (_disposed) return;
+    final device = bluetooth.devices
+        .where(
+          (item) =>
+              item.connected &&
+              bluetoothDeviceIsSupported(item) &&
+              bluetooth.busyAddress != item.address,
+        )
+        .firstOrNull;
+    if (device == null) {
+      if (_requestedAddress != null) unawaited(_disconnect());
+    } else if (device.address != _requestedAddress) {
+      unawaited(_connect(device.address));
+    }
+  }
+
+  Future<void> _connect(String address) async {
+    final generation = ++_generation;
+    _commandInFlight = false;
+    _pendingDialName = null;
+    _pendingDialNumber = null;
+    _requestedAddress = address;
+    state = const CallState.initial().copyWith(
+      deviceAddress: address,
+      busy: true,
+    );
+    final task = _lifecycle.then((_) async {
+      await _disposeBackend();
+      if (!_isCurrent(generation)) return;
+      try {
+        final backend = ref.read(telephonyBackendFactoryProvider)(address);
+        _backend = backend;
+        _subscription = backend.snapshots.listen(
+          (snapshot) {
+            if (_isCurrent(generation)) _applySnapshot(snapshot);
+          },
+          onError: (Object error) {
+            if (_isCurrent(generation)) _operationFailed(error);
+          },
+          onDone: () {
+            if (_isCurrent(generation)) {
+              _durationTimer?.cancel();
+              _activeSince = null;
+              state = const CallState.initial().copyWith(
+                deviceAddress: address,
+                error: 'Telephony service disconnected',
+              );
+            }
+          },
+        );
+        await backend.connect().timeout(const Duration(seconds: 12));
+        if (!_isCurrent(generation)) return;
+        await backend.refresh();
+        if (_isCurrent(generation)) _applySnapshot(backend.current);
+      } catch (error) {
+        if (_isCurrent(generation)) {
+          await _disposeBackend();
+          if (_isCurrent(generation)) _operationFailed(error);
+        }
+      }
+    });
+    _lifecycle = task.then((_) {}, onError: (Object _, StackTrace __) {});
+    await task;
+  }
+
+  Future<void> retry() async {
+    final address = state.deviceAddress;
+    if (address != null) await _connect(address);
+  }
+
+  Future<void> refresh() async {
+    if (_backend == null) return;
+    await _run((backend, _) => backend.refresh());
+  }
+
+  Future<void> _disconnect() async {
+    ++_generation;
+    _commandInFlight = false;
+    _pendingDialName = null;
+    _pendingDialNumber = null;
+    _requestedAddress = null;
+    state = const CallState.initial();
+    final task = _lifecycle.then((_) => _disposeBackend());
+    _lifecycle = task.then((_) {}, onError: (Object _, StackTrace __) {});
+    await task;
+  }
+
+  Future<void> _disposeBackend() async {
+    _durationTimer?.cancel();
+    _durationTimer = null;
+    _activeSince = null;
+    final subscription = _subscription;
+    final backend = _backend;
+    _subscription = null;
+    _backend = null;
+    await subscription?.cancel();
+    try {
+      await backend?.close();
+    } catch (_) {}
+  }
+
+  void _applySnapshot(TelephonySnapshot snapshot) {
+    final address = state.deviceAddress;
+    final matchingGateway =
+        snapshot.gatewayAddress != null &&
+        address != null &&
+        _normalizeAddress(snapshot.gatewayAddress!) ==
+            _normalizeAddress(address);
+    final connected =
+        snapshot.clientState == PipeWireTelephonyClientState.ready &&
+        snapshot.gatewayAddress != null &&
+        matchingGateway;
+    final gatewayError =
+        snapshot.clientState == PipeWireTelephonyClientState.ready &&
+            !matchingGateway &&
+            address != null
+        ? 'Bluetooth is connected, but hands-free calling is unavailable. Reconnect the phone in Bluetooth settings.'
+        : null;
+    final calls = snapshot.calls
+        .where(
+          (call) => connected && call.state != PipeWireCallState.disconnected,
+        )
+        .toList();
+    final primary = _primaryCall(calls);
+    final nextStatus = primary == null
+        ? CallStatus.idle
+        : _mapStatus(primary.state);
+    if (primary == null && state.hasCall) {
+      _pendingDialName = null;
+      _pendingDialNumber = null;
+    }
+    final primaryChanged = primary?.id != state.activeCallId;
+    if (primaryChanged) {
+      _durationTimer?.cancel();
+      _activeSince = null;
+    }
+    if (nextStatus == CallStatus.active &&
+        (primaryChanged || state.status != CallStatus.active)) {
+      _activeSince ??= DateTime.now();
+      _startDurationTimer();
+    } else if (nextStatus != CallStatus.active &&
+        nextStatus != CallStatus.held) {
+      _durationTimer?.cancel();
+      if (primary == null) _activeSince = null;
+    }
+    final transport = snapshot.transportState;
+    final activateAudio =
+        calls.any((call) => call.state == PipeWireCallState.active) &&
+        transport != null &&
+        transport != PipeWireTransportState.active &&
+        transport != PipeWireTransportState.pending &&
+        snapshot.rejectSco != true &&
+        (!state.participants.any((call) => call.status == CallStatus.active) ||
+            state.transportState != transport.name);
+    final participants = calls
+        .map(
+          (call) => CallParticipant(
+            id: call.id,
+            name: _displayName(call),
+            number: call.number,
+            status: _mapStatus(call.state),
+            multiparty: call.multiparty,
+          ),
+        )
+        .toList(growable: false);
+    state = state.copyWith(
+      status: nextStatus,
+      name: primary == null ? '' : _displayName(primary),
+      number: primary?.number ?? '',
+      photo: primary == null ? null : _contactForNumber(primary.number)?.photo,
+      duration: primary == null || primaryChanged
+          ? Duration.zero
+          : state.duration,
+      isHeld: nextStatus == CallStatus.held,
+      connected: connected,
+      busy: _commandInFlight,
+      isMuted: snapshot.microphoneVolume == 0,
+      gatewayAddress: snapshot.gatewayAddress,
+      activeCallId: primary?.id,
+      speakerVolume: snapshot.speakerVolume,
+      microphoneVolume: snapshot.microphoneVolume,
+      transportState: snapshot.transportState?.name,
+      codec: snapshot.codec,
+      rejectSco: snapshot.rejectSco,
+      participants: participants,
+      error: snapshot.error?.toString() ?? gatewayError,
+      clearCall: primary == null,
+      clearError: snapshot.error == null && gatewayError == null,
+    );
+    if ((snapshot.microphoneVolume ?? 0) > 0) {
+      _savedMicrophoneVolume = snapshot.microphoneVolume!;
+    }
+    if ((snapshot.speakerVolume ?? 0) > 0) {
+      _savedSpeakerVolume = snapshot.speakerVolume!;
+    }
+    if (activateAudio && address != null) {
+      unawaited(_activateCallTransport(address, _generation));
+    }
+  }
+
+  Future<void> _activateCallTransport(String address, int generation) async {
+    if (_activatingTransport == generation) {
+      _retryTransportActivation = generation;
+      return;
+    }
+    _activatingTransport = generation;
+    try {
+      await _backend?.activateTransport(address);
+    } catch (error) {
+      if (_isCurrent(generation)) _operationFailed(error);
+    } finally {
+      if (_activatingTransport == generation) _activatingTransport = null;
+      if (_retryTransportActivation == generation) {
+        _retryTransportActivation = null;
+        if (_isCurrent(generation) &&
+            state.participants.any(
+              (call) => call.status == CallStatus.active,
+            ) &&
+            state.transportState != null &&
+            state.transportState != 'active' &&
+            state.transportState != 'pending' &&
+            state.rejectSco != true) {
+          unawaited(_activateCallTransport(address, generation));
+        }
+      }
+    }
+  }
+
+  TelephonyCallInfo? _primaryCall(List<TelephonyCallInfo> calls) {
+    if (calls.isEmpty) return null;
+    for (final desired in [
+      PipeWireCallState.incoming,
+      PipeWireCallState.waiting,
+      PipeWireCallState.active,
+      PipeWireCallState.dialing,
+      PipeWireCallState.alerting,
+      PipeWireCallState.held,
+    ]) {
+      final found = calls.where((call) => call.state == desired).firstOrNull;
+      if (found != null) return found;
+    }
+    return calls.first;
+  }
+
+  String _displayName(TelephonyCallInfo call) {
+    if (call.name.trim().isNotEmpty) return call.name;
+    final normalized = normalizePhoneNumber(call.number);
+    if ((call.state == PipeWireCallState.dialing ||
+            call.state == PipeWireCallState.alerting ||
+            call.state == PipeWireCallState.active ||
+            call.state == PipeWireCallState.held) &&
+        normalized == _pendingDialNumber &&
+        _pendingDialName != null) {
+      return _pendingDialName!;
+    }
+    final contact = _contactForNumber(call.number);
+    return contact?.name ??
+        (call.number.isEmpty ? 'Unknown caller' : call.number);
+  }
+
+  Future<void> startCall(String number, {String? name}) async {
+    final generation = _generation;
+    await _run((backend, address) {
+      final resolvedName = name?.trim();
+      _pendingDialName = resolvedName == null || resolvedName.isEmpty
+          ? _contactName(number)
+          : resolvedName;
+      _pendingDialNumber = normalizePhoneNumber(number);
+      return backend.dial(address, number);
+    });
+    if (_isCurrent(generation) &&
+        state.error != null &&
+        state.status == CallStatus.idle &&
+        !_commandInFlight) {
+      _pendingDialName = null;
+      _pendingDialNumber = null;
+    }
+  }
+
+  String? _contactName(String number) {
+    return _contactForNumber(number)?.name;
+  }
+
+  PhoneContact? _contactForNumber(String number) {
+    final phone = ref.read(phoneDataProvider);
+    final address = state.deviceAddress;
+    if (address == null ||
+        phone.contactsAddress == null ||
+        _normalizeAddress(phone.contactsAddress!) !=
+            _normalizeAddress(address)) {
+      return null;
+    }
+    final normalized = normalizePhoneNumber(number);
+    if (normalized.isEmpty) return null;
+    return phone.contacts
+        .where(
+          (contact) => contact.numbers.any(
+            (candidate) => normalizePhoneNumber(candidate) == normalized,
+          ),
+        )
+        .firstOrNull;
+  }
+
+  Future<void> acceptCall() async {
+    if (state.hasWaitingCall) return holdAndAnswer();
+    final id = _incomingCallId;
+    if (id != null) await _run((backend, _) => backend.answer(id));
+  }
+
+  Future<void> rejectCall() => endCall();
+  Future<void> endCall() async {
+    final id = state.activeCallId;
+    if (id != null) {
+      await _run((backend, _) => backend.hangup(id));
+    } else {
+      await hangupAll();
+    }
+  }
+
+  Future<void> hangupAll() =>
+      _run((backend, address) => backend.hangupAll(address));
+  Future<void> sendTones(String tones) =>
+      _run((backend, address) => backend.sendTones(address, tones));
+  Future<void> swapCalls() async {
+    if (state.canSwap) {
+      await _run((backend, address) => backend.swapCalls(address));
+    }
+  }
+
+  Future<void> releaseAndAnswer() async {
+    if (state.hasWaitingCall) {
+      await _run((backend, address) => backend.releaseAndAnswer(address));
+    }
+  }
+
+  Future<void> releaseAndSwap() async {
+    if (state.canSwap) {
+      await _run((backend, address) => backend.releaseAndSwap(address));
+    }
+  }
+
+  Future<void> holdAndAnswer() async {
+    if (state.hasWaitingCall) {
+      await _run((backend, address) => backend.holdAndAnswer(address));
+    }
+  }
+
+  Future<void> createMultiparty() async {
+    if (state.canMerge) {
+      await _run((backend, address) => backend.createMultiparty(address));
+    }
+  }
+
+  Future<void> setSpeakerVolume(int volume) => _run(
+    (backend, address) =>
+        backend.setSpeakerVolume(address, volume.clamp(0, 15)),
+  );
+  Future<void> setMicrophoneVolume(int volume) => _run(
+    (backend, address) =>
+        backend.setMicrophoneVolume(address, volume.clamp(0, 15)),
+  );
+  Future<void> activateTransport() =>
+      _run((backend, address) => backend.activateTransport(address));
+  Future<void> setRejectSco(bool reject) =>
+      _run((backend, address) => backend.setRejectSco(address, reject));
+
+  Future<void> toggleMute() async {
+    if (_commandInFlight) return;
+    final generation = _generation;
+    final muted = !state.isMuted;
+    await setMicrophoneVolume(muted ? 0 : _savedMicrophoneVolume);
+    if (_isCurrent(generation) && state.error == null) {
+      state = state.copyWith(isMuted: muted);
+    }
+  }
+
+  Future<void> toggleSpeaker() async {
+    if (_commandInFlight) return;
+    final generation = _generation;
+    final enabled = !state.isSpeaker;
+    await setSpeakerVolume(enabled ? _savedSpeakerVolume : 0);
+    if (_isCurrent(generation) && state.error == null) {
+      state = state.copyWith(isSpeaker: enabled);
+    }
+  }
+
+  String? get _incomingCallId => state.participants
+      .where((call) => call.status == CallStatus.incoming)
+      .map((call) => call.id)
+      .firstOrNull;
+
+  Future<void> _run(
+    Future<void> Function(TelephonyBackend, String) action,
+  ) async {
+    if (_disposed || _commandInFlight) return;
+    final backend = _backend;
+    final address = state.deviceAddress;
+    if (backend == null || address == null || !state.connected) {
+      _operationFailed('Phone telephony is not connected');
+      return;
+    }
+    final generation = _generation;
+    _commandInFlight = true;
+    state = state.copyWith(busy: true, clearError: true);
+    try {
+      await action(backend, address);
+    } catch (error) {
+      if (_isCurrent(generation)) _operationFailed(error);
+    } finally {
+      if (_isCurrent(generation)) {
+        _commandInFlight = false;
+        state = state.copyWith(busy: false);
+      }
+    }
+  }
+
+  void _operationFailed(Object error) {
+    state = state.copyWith(
+      busy: _commandInFlight,
+      error: error.toString().replaceFirst(
+        RegExp(r'^\w+(?:Exception|Error):\s*'),
+        '',
+      ),
+    );
+  }
+
+  void _startDurationTimer() {
+    _durationTimer?.cancel();
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_disposed) return;
+      final since = _activeSince;
+      if (since != null &&
+          (state.status == CallStatus.active ||
+              state.status == CallStatus.held)) {
+        state = state.copyWith(duration: DateTime.now().difference(since));
+      }
+    });
+  }
+}
+
+CallStatus _mapStatus(PipeWireCallState status) => switch (status) {
+  PipeWireCallState.active => CallStatus.active,
+  PipeWireCallState.held => CallStatus.held,
+  PipeWireCallState.dialing || PipeWireCallState.alerting => CallStatus.dialing,
+  PipeWireCallState.incoming ||
+  PipeWireCallState.waiting => CallStatus.incoming,
+  PipeWireCallState.disconnected => CallStatus.ended,
+  PipeWireCallState.unknown => CallStatus.idle,
+};
+
+String _normalizeAddress(String value) =>
+    value.replaceAll(':', '').toLowerCase();
+
+final callStateProvider = NotifierProvider<CallStateNotifier, CallState>(
+  CallStateNotifier.new,
+);

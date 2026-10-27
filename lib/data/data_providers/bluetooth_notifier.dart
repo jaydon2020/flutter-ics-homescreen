@@ -260,6 +260,13 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
           _client.agentRespond(request.requestId, accepted: true);
           return;
         }
+        if (device.paired &&
+            device.trusted &&
+            bluetoothDeviceIsSupported(device) &&
+            _connectedDeviceExcept(device) == null) {
+          _client.agentRespond(request.requestId, accepted: true);
+          return;
+        }
         if (!_isOnBluetoothPage) {
           // Device connected from outside AGL (e.g. from the phone's BT
           // settings) while the BT page is not open — reject the service.
@@ -314,11 +321,11 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
         !wasConnected &&
         state.pairingRequest == null &&
         state.busyAddress != device.address) {
-      if (!_isOnBluetoothPage) {
-        // Connection was not initiated from AGL's BT page — disconnect it
-        // silently rather than showing a switch dialog or allowing it.
+      if (!device.paired ||
+          !device.trusted ||
+          !bluetoothDeviceIsSupported(device)) {
         debugPrint(
-          'Bluetooth: Disconnecting external connection from ${device.address} (not on BT page)',
+          'Bluetooth: Disconnecting untrusted external connection from ${device.address}',
         );
         unawaited(_rejectExternalConnection(device));
         return;
@@ -349,6 +356,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       for (final device in connected.skip(1)) {
         await _disconnectDevice(device);
       }
+      await _ensureHandsFreeProfile(active);
       await _applyDeviceBlocks(active);
       _publishDevices();
     } catch (e) {
@@ -532,6 +540,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
         throw StateError('the connection did not complete');
       }
       _connectedAddresses.add(device.address);
+      await _ensureHandsFreeProfile(device);
       await _applyDeviceBlocks(device);
       _publishDevices();
       return true;
@@ -600,6 +609,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       if (connected == null) {
         await _unblockAllDevices();
       } else {
+        await _ensureHandsFreeProfile(connected);
         await _applyDeviceBlocks(connected);
       }
       _publishDevices();
@@ -708,6 +718,27 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
     }
   }
 
+  Future<void> _ensureHandsFreeProfile(BlueZDevice device) async {
+    if (!device.uuids.any(
+      (uuid) =>
+          uuid.value.toLowerCase() ==
+          '0000111f-0000-1000-8000-00805f9b34fb',
+    )) {
+      return;
+    }
+    try {
+      await device.connectProfile(
+        const BlueZUUID('0000111f-0000-1000-8000-00805f9b34fb'),
+      );
+    } catch (error) {
+      if (error is BlueZOperationException &&
+          error.name == 'org.bluez.Error.AlreadyConnected') {
+        return;
+      }
+      _reportError('Unable to connect HFP for ${device.address}: $error');
+    }
+  }
+
   Future<void> _cleanupFailedPairing(
     BlueZDevice? device, {
     bool isAgentCancel = false,
@@ -753,7 +784,6 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   void _publishDevices() {
     if (_disposed) return;
     _publishConnectionSignal();
-    if (!_isOnBluetoothPage) return;
 
     // Some smartphones do not advertise their media UUIDs before pairing.
     // Keep unrelated devices out of the UI using profiles or device class.

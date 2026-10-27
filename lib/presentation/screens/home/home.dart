@@ -93,6 +93,8 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
                     padding: const EdgeInsets.only(left: 8),
                     child: const VoiceAssistantButton()),
               ),
+            const IncomingCallOverlay(),
+            const OngoingCallOverlay(),
           ],
         ),
         bottomNavigationBar:
