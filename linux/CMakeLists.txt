@@ -89,6 +89,25 @@ set_target_properties(${BINARY_NAME}
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
+# Plugin configuration runs before Dart build hooks can initialize submodules.
+set(PWT_PLUGIN_DIR
+  "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks/pipewire_telephony_native")
+if(EXISTS "${PWT_PLUGIN_DIR}/native/CMakeLists.txt" AND
+    NOT PWT_PREBUILT_LIBRARY AND
+    NOT EXISTS "${PWT_PLUGIN_DIR}/native/third_party/sdbus-cpp/CMakeLists.txt")
+  find_package(Git REQUIRED)
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${PWT_PLUGIN_DIR}"
+      submodule update --init --recursive
+    RESULT_VARIABLE PWT_SUBMODULE_RESULT
+    ERROR_VARIABLE PWT_SUBMODULE_ERROR
+  )
+  if(NOT PWT_SUBMODULE_RESULT EQUAL 0 OR
+      NOT EXISTS "${PWT_PLUGIN_DIR}/native/third_party/sdbus-cpp/CMakeLists.txt")
+    message(FATAL_ERROR
+      "Cannot initialize PipeWire telephony's sdbus-cpp submodule: ${PWT_SUBMODULE_ERROR}")
+  endif()
+endif()
 include(flutter/generated_plugins.cmake)
 
 # Rive's bundled HarfBuzz triggers this diagnostic on newer Clang versions.
@@ -101,6 +120,12 @@ if(TARGET rive_common_plugin AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(rive_common_plugin PRIVATE
       "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=nontrivial-memcall>")
   endif()
+endif()
+
+# Rive's bundled third-party C sources (SheenBidi etc.) emit assorted warnings
+# under NDEBUG/newer compilers; don't let -Werror make them fatal.
+if(TARGET rive_common_plugin)
+  target_compile_options(rive_common_plugin PRIVATE -Wno-error)
 endif()
 
 
@@ -134,6 +159,11 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endforeach(bundled_library)
+
+# Bundle the libraries built by Dart native-assets hooks.
+set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
+install(DIRECTORY "${NATIVE_ASSETS_DIR}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
 
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bluez_native/bluez_native.dart';
+import 'package:dbus/dbus.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 
 // ---------------------------------------------------------------------------
@@ -10,11 +11,12 @@ import 'package:flutter_ics_homescreen/export.dart';
 enum BluetoothOperation { connecting, disconnecting, removing }
 
 const maxPairedBluetoothDevices = 10;
+const bluetoothHfpAudioGatewayUuid = '0000111f-0000-1000-8000-00805f9b34fb';
 
 const bluetoothSupportedProfileUuids = <String>[
   '0000110a-0000-1000-8000-00805f9b34fb', // A2DP source
   '0000110e-0000-1000-8000-00805f9b34fb', // AVRCP
-  '0000111f-0000-1000-8000-00805f9b34fb', // HFP audio gateway
+  bluetoothHfpAudioGatewayUuid, // HFP audio gateway
   '0000112f-0000-1000-8000-00805f9b34fb', // PBAP phonebook server
   '00001132-0000-1000-8000-00805f9b34fb', // MAP message access server
 ];
@@ -28,6 +30,28 @@ bool bluetoothPairingLimitReached(int pairedDeviceCount) =>
 bool bluetoothSupportsMediaProfile(Iterable<String> uuids) => uuids.any(
   (uuid) => bluetoothSupportedProfileUuids.contains(uuid.toLowerCase()),
 );
+
+bool bluetoothSupportsHandsFreeProfile(Iterable<String> uuids) =>
+    uuids.any((uuid) => uuid.toLowerCase() == bluetoothHfpAudioGatewayUuid);
+
+Future<void> connectBlueZProfile(
+  DBusClient bus,
+  String objectPath,
+  String uuid,
+) async {
+  final device = DBusRemoteObject(
+    bus,
+    name: 'org.bluez',
+    path: DBusObjectPath(objectPath),
+  );
+  try {
+    await device.callMethod('org.bluez.Device1', 'ConnectProfile', [
+      DBusString(uuid),
+    ]);
+  } on DBusMethodResponseException catch (error) {
+    if (error.errorName != 'org.bluez.Error.AlreadyConnected') rethrow;
+  }
+}
 
 bool bluetoothDeviceSupportsMediaProfile(BlueZDevice device) =>
     bluetoothSupportsMediaProfile(device.uuids.map((uuid) => uuid.value));
@@ -128,6 +152,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   @override
   BluetoothState build() {
     _client = ref.watch(blueZClientFactoryProvider)();
+    _connectProfile = ref.watch(blueZProfileConnectorProvider);
     ref.onDispose(_disposeResources);
     ref.listen<AppState>(appProvider, (previous, next) {
       if (next == AppState.bluetooth || next == AppState.bluetoothScan) {
@@ -139,6 +164,8 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   }
 
   late final BlueZClient _client;
+  late final Future<void> Function(String objectPath, String uuid)
+  _connectProfile;
   final Map<String, BlueZDevice> _devices = {};
   final Set<String> _connectedAddresses = {};
   final Set<String> _intentionalDisconnects = {};
@@ -364,6 +391,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       for (final device in connected.skip(1)) {
         await _disconnectDevice(device);
       }
+      await _ensureHandsFreeProfile(active);
       await _applyDeviceBlocks(active);
       _publishDevices();
     } catch (e) {
@@ -545,6 +573,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
         throw StateError('the connection did not complete');
       }
       _connectedAddresses.add(device.address);
+      await _ensureHandsFreeProfile(device);
       await _applyDeviceBlocks(device);
       _publishDevices();
       return true;
@@ -694,6 +723,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       if (connected == null) {
         await _unblockAllDevices();
       } else {
+        await _ensureHandsFreeProfile(connected);
         await _applyDeviceBlocks(connected);
       }
       _publishDevices();
@@ -721,6 +751,22 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
         arguments,
         result.stderr.toString().trim(),
         result.exitCode,
+      );
+    }
+  }
+
+  Future<void> _ensureHandsFreeProfile(BlueZDevice device) async {
+    if (!bluetoothSupportsHandsFreeProfile(
+      device.uuids.map((uuid) => uuid.value),
+    )) {
+      return;
+    }
+    try {
+      await _connectProfile(device.objectPath, bluetoothHfpAudioGatewayUuid);
+    } catch (error) {
+      _reportError(
+        'Unable to connect the hands-free profile for '
+        '${bluetoothDeviceName(device)}: $error',
       );
     }
   }
@@ -816,10 +862,19 @@ final blueZClientFactoryProvider = Provider<BlueZClient Function()>(
   (ref) => BlueZClient.new,
 );
 
+final blueZProfileConnectorProvider =
+    Provider<Future<void> Function(String objectPath, String uuid)>((ref) {
+      final bus = DBusClient.system();
+      ref.onDispose(() => unawaited(bus.close()));
+      return (objectPath, uuid) => connectBlueZProfile(bus, objectPath, uuid);
+    });
+
 final bluetoothProvider = NotifierProvider<BluetoothNotifier, BluetoothState>(
   BluetoothNotifier.new,
 );
 
 /// Uses the demo backend when native initialization fails.
-final nativeBluetoothAvailableProvider = Provider<bool?>((ref) =>
-    ref.watch(bluetoothProvider.select((state) => state.nativeAvailable)));
+final nativeBluetoothAvailableProvider = Provider<bool?>(
+  (ref) =>
+      ref.watch(bluetoothProvider.select((state) => state.nativeAvailable)),
+);
