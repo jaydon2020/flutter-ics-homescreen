@@ -52,11 +52,10 @@ packages:
   bluez_obex_native:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "3be5f8a4638958c22dfc5a9e148ac6e68665fab9"
-      resolved-ref: "3be5f8a4638958c22dfc5a9e148ac6e68665fab9"
-      url: "https://github.com/jaydon2020/bluez_obex_native.git"
-    source: git
+      name: bluez_obex_native
+      sha256: ae43d8bd634c9d228b695cc3b16006da034f02956564fd972aeee2426e7f5748
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   boolean_selector:
     dependency: transitive
@@ -552,11 +551,10 @@ packages:
   pipewire_telephony_native:
     dependency: "direct main"
     description:
-      path: "."
-      ref: db241b1e00f1915ab1db79ec2b21a2bd9b6d71c1
-      resolved-ref: db241b1e00f1915ab1db79ec2b21a2bd9b6d71c1
-      url: "https://github.com/jaydon2020/pipewire_telephony_native.git"
-    source: git
+      name: pipewire_telephony_native
+      sha256: "53c18558b68c7abb9be51a3bb0e838fc950db5f594824285a963dc03d8ee2ef2"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   platform:
     dependency: transitive

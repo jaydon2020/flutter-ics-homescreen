@@ -61,14 +61,8 @@ dependencies:
   bluez_native: ^0.3.1
   bluez_media_native: ^0.3.1
   dbus: ^0.7.12
-  bluez_obex_native:
-    git:
-      url: https://github.com/jaydon2020/bluez_obex_native.git
-      ref: 3be5f8a4638958c22dfc5a9e148ac6e68665fab9
-  pipewire_telephony_native:
-    git:
-      url: https://github.com/jaydon2020/pipewire_telephony_native.git
-      ref: db241b1e00f1915ab1db79ec2b21a2bd9b6d71c1
+  bluez_obex_native: ^0.1.0
+  pipewire_telephony_native: ^0.1.0
 
 dependency_overrides:
   code_assets: 1.1.0
