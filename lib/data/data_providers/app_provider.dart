@@ -190,7 +190,10 @@ final playControllerProvider = Provider((ref) {
       (state) => state.playState == PlayState.playing,
     ),
     (_, playing) {
-      if (playing) controller.setSource(PlaySource.media);
+      if (playing) {
+        ref.read(bluetoothMediaProvider.notifier).pause();
+        controller.setSource(PlaySource.media);
+      }
     },
     fireImmediately: true,
   );
@@ -198,7 +201,10 @@ final playControllerProvider = Provider((ref) {
     _,
     playing,
   ) {
-    if (playing) controller.setSource(PlaySource.radio);
+    if (playing) {
+      ref.read(bluetoothMediaProvider.notifier).pause();
+      controller.setSource(PlaySource.radio);
+    }
   }, fireImmediately: true);
   ref.listen<bool>(
     bluetoothMediaProvider.select(

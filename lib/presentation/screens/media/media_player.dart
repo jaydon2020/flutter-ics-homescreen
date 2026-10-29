@@ -4,7 +4,6 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 import 'package:flutter_ics_homescreen/core/utils/helpers.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_media_notifier.dart';
-import 'package:flutter_ics_homescreen/data/data_providers/play_controller.dart';
 import 'media_player_controls.dart';
 import 'media_nav_notifier.dart';
 import 'play_list_table.dart';
@@ -42,9 +41,6 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
               }
             });
           }
-        } else if (!next.available &&
-            ref.read(mediaSourceTabProvider) == MediaSourceTab.bluetooth) {
-          ref.read(playControllerProvider).setSource(PlaySource.media);
         }
         if (!next.connected) {
           _queueCoverArt(null);
@@ -111,15 +107,6 @@ class _MediaPlayerState extends ConsumerState<MediaPlayer> {
       _ => MediaSourceTab.usb,
     };
     ref.read(mediaSourceTabProvider.notifier).set(tab);
-    if (source == 'Bluetooth' && ref.read(bluetoothMediaProvider).available) {
-      ref.read(mpdClientProvider).pause();
-      ref.read(playControllerProvider).setSource(PlaySource.bluetooth);
-    } else {
-      if (source != 'Bluetooth') {
-        ref.read(bluetoothMediaProvider.notifier).pause();
-      }
-      ref.read(playControllerProvider).setSource(PlaySource.media);
-    }
   }
 
   @override
