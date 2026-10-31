@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bluez/bluez.dart' as dbus_bluez;
 import 'package:bluez_native/bluez_native.dart';
 import 'package:flutter_ics_homescreen/export.dart';
 
@@ -36,6 +37,23 @@ bool bluetoothDeviceIsSupported(BlueZDevice device) =>
     bluetoothDeviceSupportsMediaProfile(device) ||
     (device.deviceClass & bluetoothSmartphoneClassMask) ==
         bluetoothSmartphoneClass;
+
+typedef ProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
+Future<void> unblockBluetoothRfkill({ProcessRunner run = Process.run}) async {
+  final result = await run('rfkill', const ['unblock', 'bluetooth']);
+  if (result.exitCode != 0) {
+    throw ProcessException(
+      'rfkill',
+      const ['unblock', 'bluetooth'],
+      result.stderr.toString().trim(),
+      result.exitCode,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -142,6 +160,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   final Set<String> _intentionalDisconnects = {};
 
   Future<void>? _initialization;
+  Future<dbus_bluez.BlueZClient>? _hfpClientInitialization;
   StreamSubscription<BlueZDevice>? _deviceAddedSub;
   StreamSubscription<BlueZDevice>? _deviceRemovedSub;
   StreamSubscription<BlueZDevice>? _deviceChangedSub;
@@ -390,6 +409,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
     }
     _updateState((state) => state.copyWith(changingPower: true));
     try {
+      if (powered) await unblockBluetoothRfkill();
       if (!powered) await _stopDiscovery();
       await adapter.setPowered(powered);
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -727,15 +747,41 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       return;
     }
     try {
-      await device.connectProfile(
-        const BlueZUUID('0000111f-0000-1000-8000-00805f9b34fb'),
+      final client = await _hfpClient();
+      final dbusDevice = client.devices
+          .where((candidate) => candidate.address == device.address)
+          .firstOrNull;
+      if (dbusDevice == null) {
+        throw StateError('device is unavailable over DBus');
+      }
+      await dbusDevice.connectProfile(
+        dbus_bluez.BlueZUUID.fromString(
+          '0000111f-0000-1000-8000-00805f9b34fb',
+        ),
       );
     } catch (error) {
-      if (error is BlueZOperationException &&
-          error.name == 'org.bluez.Error.AlreadyConnected') {
+      if (error is dbus_bluez.BlueZAlreadyConnectedException) {
         return;
       }
       _reportError('Unable to connect HFP for ${device.address}: $error');
+    }
+  }
+
+  Future<dbus_bluez.BlueZClient> _hfpClient() =>
+      _hfpClientInitialization ??= _connectHfpClient();
+
+  Future<dbus_bluez.BlueZClient> _connectHfpClient() async {
+    final client = dbus_bluez.BlueZClient();
+    try {
+      await client.connect();
+      if (_disposed) {
+        throw StateError('Bluetooth notifier is disposed');
+      }
+      return client;
+    } catch (_) {
+      await client.close();
+      _hfpClientInitialization = null;
+      rethrow;
     }
   }
 
@@ -817,6 +863,10 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
     _adapterChangedSub?.cancel();
     if (_agentRegistered) _client.unregisterAgent();
     unawaited(_client.close());
+    final hfpClient = _hfpClientInitialization;
+    if (hfpClient != null) {
+      unawaited(hfpClient.then((client) => client.close()).catchError((_) {}));
+    }
   }
 }
 

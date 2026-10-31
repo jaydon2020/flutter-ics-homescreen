@@ -671,7 +671,7 @@ class _DialView extends ConsumerWidget {
         Expanded(
           child: Center(
             child: SizedBox.square(
-              dimension: 76,
+              dimension: 96,
               child: ElevatedButton(
                 key: const ValueKey('dial-call'),
                 onPressed: !enabled || number.isEmpty
@@ -685,7 +685,7 @@ class _DialView extends ConsumerWidget {
                   foregroundColor: AGLDemoColors.backgroundInsetColor,
                   shape: const CircleBorder(),
                 ),
-                child: const Icon(Icons.call_rounded, size: 34),
+                child: const Icon(Icons.call_rounded, size: 42),
               ),
             ),
           ),
@@ -730,18 +730,21 @@ class _DialView extends ConsumerWidget {
         ],
       );
     }
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          suggestions,
-          numberArea,
-          const SizedBox(height: 4),
-          keypad,
-          const SizedBox(height: 16),
-          actions,
-          const SizedBox(height: 32),
-        ],
-      ),
+    return Column(
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: suggestions,
+          ),
+        ),
+        numberArea,
+        const SizedBox(height: 4),
+        keypad,
+        const SizedBox(height: 16),
+        actions,
+        const SizedBox(height: 32),
+      ],
     );
   }
 }

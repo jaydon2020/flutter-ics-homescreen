@@ -33,6 +33,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
+  bluez:
+    dependency: "direct main"
+    description:
+      name: bluez
+      sha256: "61a7204381925896a374301498f2f5399e59827c6498ae1e924aaa598751b545"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.3"
   bluez_media_native:
     dependency: "direct main"
     description:
@@ -44,11 +52,10 @@ packages:
   bluez_native:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "2c13af7e96f262610390459af841a9affeba337b"
-      resolved-ref: "2c13af7e96f262610390459af841a9affeba337b"
-      url: "https://github.com/jaydon2020/bluez_native.git"
-    source: git
+      name: bluez_native
+      sha256: b00171862a00726f1d5045e3a96501627c437bde98b18d3f162f81eadcb48467
+      url: "https://pub.dev"
+    source: hosted
     version: "0.3.2"
   bluez_obex_native:
     dependency: "direct main"
@@ -441,10 +448,10 @@ packages:
     dependency: "direct main"
     description:
       name: lottie
-      sha256: b23dd887cb1d167c3be37cdfad5ec27c012e77bcf7c02c01518cf4b76f384bcd
+      sha256: "8b6359a7422167014aa73ce763fa133fb832065dcc0ac4d1dec1f603a5cef7d0"
       url: "https://pub.dev"
     source: hosted
-    version: "3.8.0"
+    version: "3.3.3"
   matcher:
     dependency: transitive
     description:

@@ -58,10 +58,8 @@ dependencies:
     path: ./packages/flutter_calendar_carousel
   dart_mpd: ^0.4.1
   mime: ^2.0.0
-  bluez_native:
-    git:
-      url: https://github.com/jaydon2020/bluez_native.git
-      ref: 2c13af7e96f262610390459af841a9affeba337b
+  bluez_native: ^0.3.2
+  bluez: ^0.8.3
   bluez_media_native: ^0.3.1
   bluez_obex_native: ^0.1.1
   pipewire_telephony_native: ^0.1.1
