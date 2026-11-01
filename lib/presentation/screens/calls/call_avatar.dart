@@ -10,7 +10,7 @@ class CallAvatar extends StatelessWidget {
     this.icon = Icons.person_rounded,
     this.iconSize,
     this.iconColor = AGLDemoColors.periwinkleColor,
-    this.backgroundColor = AGLDemoColors.callControlColor,
+    this.backgroundColor = AGLDemoColors.resolutionBlueColor,
     this.borderColor,
     super.key,
   });

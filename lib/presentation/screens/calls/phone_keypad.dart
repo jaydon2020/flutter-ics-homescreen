@@ -61,7 +61,7 @@ class PhoneKeypad extends StatelessWidget {
                   width: constraints.maxWidth,
                   height: constraints.constrainHeight(88),
                   child: Material(
-                    color: AGLDemoColors.callControlColor,
+                    color: AGLDemoColors.resolutionBlueColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
                       side: BorderSide(

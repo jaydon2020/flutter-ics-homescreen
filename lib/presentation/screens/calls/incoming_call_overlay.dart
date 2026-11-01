@@ -29,7 +29,16 @@ class IncomingCallOverlay extends ConsumerWidget {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  gradient: AGLDemoColors.callNotificationGradient,
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    stops: [0, 0.5, 1],
+                    colors: [
+                      Colors.black,
+                      AGLDemoColors.gradientBackgroundDarkColor,
+                      Colors.black,
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(40),
                   boxShadow: [
                     BoxShadow(
@@ -47,7 +56,7 @@ class IncomingCallOverlay extends ConsumerWidget {
                           _NotifierAction(
                             label: 'Decline',
                             icon: Icons.call_end_rounded,
-                            color: AGLDemoColors.callDangerColor,
+                            color: AGLDemoColors.redProgressStrokeColor,
                             compact: compact,
                             onPressed: call.busy ? null : notifier.rejectCall,
                           ),

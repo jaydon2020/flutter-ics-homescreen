@@ -135,7 +135,7 @@ class _PhoneStatus extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AGLDemoColors.callControlColor,
+              color: AGLDemoColors.resolutionBlueColor,
               borderRadius: BorderRadius.circular(18),
             ),
             child: const Icon(
@@ -299,7 +299,7 @@ class _RecentsView extends ConsumerWidget {
             meta: DateFormat('MMM d  •  h:mm a').format(item.timestamp),
             statusIcon: icon,
             statusColor: missed
-                ? AGLDemoColors.callDangerColor
+                ? AGLDemoColors.redProgressStrokeColor
                 : AGLDemoColors.jordyBlueColor,
             primaryIcon: Icons.call_rounded,
             onPrimary: () => ref
@@ -378,7 +378,7 @@ class _ContactsViewState extends ConsumerState<_ContactsView> {
                     color: AGLDemoColors.jordyBlueColor,
                   ),
                   filled: true,
-                  fillColor: AGLDemoColors.callSurfaceColor,
+                  fillColor: AGLDemoColors.gradientBackgroundDarkColor,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none,
@@ -480,7 +480,7 @@ class _ContactsViewState extends ConsumerState<_ContactsView> {
     await showDialog<void>(
       context: context,
       builder: (context) => SimpleDialog(
-        backgroundColor: AGLDemoColors.callSurfaceColor,
+        backgroundColor: AGLDemoColors.gradientBackgroundDarkColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text('Call ${contact.name}'),
         children: [
@@ -578,7 +578,7 @@ class _DialView extends ConsumerWidget {
                   excludeSemantics: true,
                   label: 'Use ${match.contact.name}, ${match.number}',
                   child: Material(
-                    color: AGLDemoColors.callControlColor,
+                    color: AGLDemoColors.resolutionBlueColor,
                     borderRadius: BorderRadius.circular(16),
                     child: InkWell(
                       key: ValueKey(
@@ -681,7 +681,7 @@ class _DialView extends ConsumerWidget {
                           .startCall(number, name: exactMatch?.contact.name),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AGLDemoColors.greenColor,
-                  disabledBackgroundColor: AGLDemoColors.callControlColor,
+                  disabledBackgroundColor: AGLDemoColors.resolutionBlueColor,
                   foregroundColor: AGLDemoColors.backgroundInsetColor,
                   shape: const CircleBorder(),
                 ),
@@ -822,7 +822,7 @@ class _PhoneRow extends StatelessWidget {
               colors: [Color(0xff2388e8), AGLDemoColors.buttonFillEnabledColor],
             )
           : const LinearGradient(
-              colors: [Color(0xff050711), Color(0xff101638)],
+              colors: [Colors.black, AGLDemoColors.gradientBackgroundDarkColor],
             ),
       borderRadius: BorderRadius.circular(24),
     ),
@@ -899,7 +899,7 @@ class _ContactAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CircleAvatar(
     radius: 34,
-    backgroundColor: AGLDemoColors.callControlColor,
+    backgroundColor: AGLDemoColors.resolutionBlueColor,
     backgroundImage: contact.photo == null ? null : MemoryImage(contact.photo!),
     child: contact.photo == null
         ? Text(
@@ -920,7 +920,7 @@ class _InitialAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CircleAvatar(
     radius: 34,
-    backgroundColor: AGLDemoColors.callControlColor,
+    backgroundColor: AGLDemoColors.resolutionBlueColor,
     child: Text(
       name.isEmpty ? '?' : name[0].toUpperCase(),
       style: const TextStyle(
@@ -979,14 +979,14 @@ class _InlineError extends StatelessWidget {
     constraints: const BoxConstraints(minHeight: 56),
     padding: const EdgeInsets.only(left: 16),
     decoration: BoxDecoration(
-      color: AGLDemoColors.callDangerColor.withValues(alpha: .14),
+      color: AGLDemoColors.redProgressStrokeColor.withValues(alpha: .14),
       borderRadius: BorderRadius.circular(18),
     ),
     child: Row(
       children: [
         const Icon(
           Icons.error_outline_rounded,
-          color: AGLDemoColors.callDangerColor,
+          color: AGLDemoColors.redProgressStrokeColor,
         ),
         const SizedBox(width: 12),
         Expanded(

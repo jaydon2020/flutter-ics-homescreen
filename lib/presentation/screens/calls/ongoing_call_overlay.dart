@@ -45,7 +45,16 @@ class OngoingCallOverlay extends ConsumerWidget {
             height: 132,
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
             decoration: BoxDecoration(
-              gradient: AGLDemoColors.callNotificationGradient,
+              gradient: const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                stops: [0, 0.5, 1],
+                colors: [
+                  Colors.black,
+                  AGLDemoColors.gradientBackgroundDarkColor,
+                  Colors.black,
+                ],
+              ),
               borderRadius: BorderRadius.circular(40),
               boxShadow: [
                 BoxShadow(
@@ -79,7 +88,7 @@ class OngoingCallOverlay extends ConsumerWidget {
                                   : Icons.call_rounded,
                               iconSize: 25,
                               iconColor: accent,
-                              backgroundColor: AGLDemoColors.callControlColor
+                              backgroundColor: AGLDemoColors.resolutionBlueColor
                                   .withValues(alpha: 0.72),
                             ),
                             const SizedBox(width: 13),
@@ -157,7 +166,7 @@ class OngoingCallOverlay extends ConsumerWidget {
                   key: const ValueKey('ongoing-hang-up'),
                   label: 'End call',
                   icon: Icons.call_end_rounded,
-                  color: AGLDemoColors.callDangerColor,
+                  color: AGLDemoColors.redProgressStrokeColor,
                   onPressed: call.busy ? null : notifier.endCall,
                 ),
               ],

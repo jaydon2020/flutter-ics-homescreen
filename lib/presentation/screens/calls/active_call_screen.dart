@@ -165,7 +165,9 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
                 constraints: const BoxConstraints(minHeight: 48),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: AGLDemoColors.callDangerColor.withValues(alpha: .14),
+                  color: AGLDemoColors.redProgressStrokeColor.withValues(
+                    alpha: .14,
+                  ),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 alignment: Alignment.center,
@@ -182,7 +184,7 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen> {
             _CallAction(
               icon: Icons.call_end_rounded,
               label: 'End call',
-              fillColor: AGLDemoColors.callDangerColor,
+              fillColor: AGLDemoColors.redProgressStrokeColor,
               onPressed: notifier.endCall,
             ),
           ],
@@ -294,7 +296,7 @@ class _CallAction extends ConsumerWidget {
                       fillColor ??
                       (selected
                           ? color.withValues(alpha: 0.24)
-                          : AGLDemoColors.callControlColor),
+                          : AGLDemoColors.resolutionBlueColor),
                   foregroundColor: fillColor == null && !selected
                       ? Colors.white
                       : fillColor == null
