@@ -45,11 +45,10 @@ class PhoneDataNotifier extends Notifier<PhoneDataState> {
       unawaited(_lifecycle.then((_) => _disposeNative()));
     });
     ref.listen(bluetoothProvider, (previous, next) => _syncBluetooth(next));
-    Future.microtask(() {
-      if (!_disposed) _syncBluetooth(ref.read(bluetoothProvider));
-    });
     return const PhoneDataState();
   }
+
+  void connect() => _syncBluetooth(ref.read(bluetoothProvider));
 
   Future<void> _loadCachedContacts(int generation, String address) async {
     if (!_isCurrent(generation)) return;

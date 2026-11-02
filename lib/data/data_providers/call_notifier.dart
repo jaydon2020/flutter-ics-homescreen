@@ -17,6 +17,7 @@ class CallStateNotifier extends Notifier<CallState> {
   TelephonyBackend? _backend;
   StreamSubscription<TelephonySnapshot>? _subscription;
   Timer? _durationTimer;
+  Timer? _reconnectTimer;
   DateTime? _activeSince;
   int _savedMicrophoneVolume = 8;
   int _savedSpeakerVolume = 8;
@@ -37,6 +38,7 @@ class CallStateNotifier extends Notifier<CallState> {
     ref.onDispose(() {
       _disposed = true;
       ++_generation;
+      _reconnectTimer?.cancel();
       unawaited(_lifecycle.then((_) => _disposeBackend()));
     });
     ref.listen(bluetoothProvider, (previous, next) => _syncBluetooth(next));
@@ -49,11 +51,10 @@ class CallStateNotifier extends Notifier<CallState> {
         if (!_disposed && backend != null) _applySnapshot(backend.current);
       },
     );
-    Future.microtask(() {
-      if (!_disposed) _syncBluetooth(ref.read(bluetoothProvider));
-    });
     return const CallState.initial();
   }
+
+  void connect() => _syncBluetooth(ref.read(bluetoothProvider));
 
   void _syncBluetooth(BluetoothState bluetooth) {
     if (_disposed) return;
@@ -67,12 +68,15 @@ class CallStateNotifier extends Notifier<CallState> {
         .firstOrNull;
     if (device == null) {
       if (_requestedAddress != null) unawaited(_disconnect());
-    } else if (device.address != _requestedAddress) {
+    } else if (device.address != _requestedAddress ||
+        (!state.busy && _backend == null && _reconnectTimer == null)) {
       unawaited(_connect(device.address));
     }
   }
 
   Future<void> _connect(String address) async {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     final generation = ++_generation;
     _commandInFlight = false;
     _pendingDialName = null;
@@ -93,7 +97,10 @@ class CallStateNotifier extends Notifier<CallState> {
             if (_isCurrent(generation)) _applySnapshot(snapshot);
           },
           onError: (Object error) {
-            if (_isCurrent(generation)) _operationFailed(error);
+            if (_isCurrent(generation)) {
+              _operationFailed(error);
+              _scheduleReconnect(address, generation);
+            }
           },
           onDone: () {
             if (_isCurrent(generation)) {
@@ -103,6 +110,7 @@ class CallStateNotifier extends Notifier<CallState> {
                 deviceAddress: address,
                 error: 'Telephony service disconnected',
               );
+              _scheduleReconnect(address, generation);
             }
           },
         );
@@ -113,7 +121,10 @@ class CallStateNotifier extends Notifier<CallState> {
       } catch (error) {
         if (_isCurrent(generation)) {
           await _disposeBackend();
-          if (_isCurrent(generation)) _operationFailed(error);
+          if (_isCurrent(generation)) {
+            _operationFailed(error);
+            _scheduleReconnect(address, generation);
+          }
         }
       }
     });
@@ -133,6 +144,8 @@ class CallStateNotifier extends Notifier<CallState> {
 
   Future<void> _disconnect() async {
     ++_generation;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _commandInFlight = false;
     _pendingDialName = null;
     _pendingDialNumber = null;
@@ -155,6 +168,18 @@ class CallStateNotifier extends Notifier<CallState> {
     try {
       await backend?.close();
     } catch (_) {}
+  }
+
+  void _scheduleReconnect(String address, int generation) {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 3), () {
+      _reconnectTimer = null;
+      if (!_isCurrent(generation) || _requestedAddress != address) return;
+      final connected = ref.read(bluetoothProvider).devices.any(
+            (device) => device.connected && device.address == address,
+          );
+      if (connected) unawaited(_connect(address));
+    });
   }
 
   void _applySnapshot(TelephonySnapshot snapshot) {

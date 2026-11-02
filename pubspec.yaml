@@ -48,7 +48,7 @@ dependencies:
   network_info_plus: ^6.0.1
   toml: "^0.16.0"
   gradient_borders: ^1.0.1
-  lottie: 3.3.3
+  lottie: 3.5.1
   device_preview: ^1.2.0
   rive: ^0.13.13
   new_virtual_keyboard: ^0.1.4

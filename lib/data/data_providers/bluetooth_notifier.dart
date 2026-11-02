@@ -11,13 +11,19 @@ import 'package:flutter_ics_homescreen/export.dart';
 enum BluetoothOperation { connecting, disconnecting, removing }
 
 const maxPairedBluetoothDevices = 10;
+const bluetoothA2dpSourceUuid = '0000110a-0000-1000-8000-00805f9b34fb';
+const bluetoothAvrcpUuid = '0000110e-0000-1000-8000-00805f9b34fb';
+const bluetoothHfpAudioGatewayUuid = '0000111f-0000-1000-8000-00805f9b34fb';
+const bluetoothPbapPhonebookServerUuid = '0000112f-0000-1000-8000-00805f9b34fb';
+const bluetoothMapMessageAccessServerUuid =
+    '00001132-0000-1000-8000-00805f9b34fb';
 
 const bluetoothSupportedProfileUuids = <String>[
-  '0000110a-0000-1000-8000-00805f9b34fb', // A2DP source
-  '0000110e-0000-1000-8000-00805f9b34fb', // AVRCP
-  '0000111f-0000-1000-8000-00805f9b34fb', // HFP audio gateway
-  '0000112f-0000-1000-8000-00805f9b34fb', // PBAP phonebook server
-  '00001132-0000-1000-8000-00805f9b34fb', // MAP message access server
+  bluetoothA2dpSourceUuid,
+  bluetoothAvrcpUuid,
+  bluetoothHfpAudioGatewayUuid,
+  bluetoothPbapPhonebookServerUuid,
+  bluetoothMapMessageAccessServerUuid,
 ];
 
 const bluetoothSmartphoneClassMask = 0x1ffc;
@@ -38,21 +44,17 @@ bool bluetoothDeviceIsSupported(BlueZDevice device) =>
     (device.deviceClass & bluetoothSmartphoneClassMask) ==
         bluetoothSmartphoneClass;
 
-typedef ProcessRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments,
-);
-
-Future<void> unblockBluetoothRfkill({ProcessRunner run = Process.run}) async {
-  final result = await run('rfkill', const ['unblock', 'bluetooth']);
-  if (result.exitCode != 0) {
-    throw ProcessException(
-      'rfkill',
-      const ['unblock', 'bluetooth'],
-      result.stderr.toString().trim(),
-      result.exitCode,
-    );
+Future<bool> _waitForBlueZConnection(BlueZDevice device) async {
+  if (device.connected) return true;
+  try {
+    await device.propertiesChanged
+        .where((_) => device.connected)
+        .first
+        .timeout(const Duration(seconds: 10));
+  } on TimeoutException {
+    // The final property check below remains authoritative.
   }
+  return device.connected;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +162,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   final Set<String> _intentionalDisconnects = {};
 
   Future<void>? _initialization;
-  Future<dbus_bluez.BlueZClient>? _hfpClientInitialization;
+  Future<dbus_bluez.BlueZClient>? _profileClientInitialization;
   StreamSubscription<BlueZDevice>? _deviceAddedSub;
   StreamSubscription<BlueZDevice>? _deviceRemovedSub;
   StreamSubscription<BlueZDevice>? _deviceChangedSub;
@@ -409,7 +411,6 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
     }
     _updateState((state) => state.copyWith(changingPower: true));
     try {
-      if (powered) await unblockBluetoothRfkill();
       if (!powered) await _stopDiscovery();
       await adapter.setPowered(powered);
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -555,10 +556,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
           (state) => state.copyWith(clearDisconnectingAddress: true),
         );
       }
-      if (!device.connected) await device.connect();
-      if (!device.connected) {
-        throw StateError('the connection did not complete');
-      }
+      if (!device.connected) await _connectDeviceWithoutRequiredHfp(device);
       _connectedAddresses.add(device.address);
       await _ensureHandsFreeProfile(device);
       await _applyDeviceBlocks(device);
@@ -571,7 +569,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       if (current != null && !current.connected) {
         try {
           await _setDeviceBlocked(current, false);
-          await current.connect();
+          await _connectDeviceWithoutRequiredHfp(current);
           if (current.connected) await _applyDeviceBlocks(current);
         } catch (rollbackError) {
           debugPrint(
@@ -740,37 +738,62 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
 
   Future<void> _ensureHandsFreeProfile(BlueZDevice device) async {
     if (!device.uuids.any(
-      (uuid) =>
-          uuid.value.toLowerCase() ==
-          '0000111f-0000-1000-8000-00805f9b34fb',
+      (uuid) => uuid.value.toLowerCase() == bluetoothHfpAudioGatewayUuid,
     )) {
       return;
     }
     try {
-      final client = await _hfpClient();
-      final dbusDevice = client.devices
-          .where((candidate) => candidate.address == device.address)
-          .firstOrNull;
-      if (dbusDevice == null) {
-        throw StateError('device is unavailable over DBus');
-      }
-      await dbusDevice.connectProfile(
-        dbus_bluez.BlueZUUID.fromString(
-          '0000111f-0000-1000-8000-00805f9b34fb',
-        ),
-      );
+      await _connectProfile(device, bluetoothHfpAudioGatewayUuid);
     } catch (error) {
-      if (error is dbus_bluez.BlueZAlreadyConnectedException) {
-        return;
-      }
       _reportError('Unable to connect HFP for ${device.address}: $error');
     }
   }
 
-  Future<dbus_bluez.BlueZClient> _hfpClient() =>
-      _hfpClientInitialization ??= _connectHfpClient();
+  Future<void> _connectDeviceWithoutRequiredHfp(BlueZDevice device) async {
+    const baseProfiles = [
+      bluetoothA2dpSourceUuid,
+      bluetoothAvrcpUuid,
+    ];
 
-  Future<dbus_bluez.BlueZClient> _connectHfpClient() async {
+    Object? lastError;
+    StackTrace? lastStackTrace;
+    for (final uuid in baseProfiles) {
+      try {
+        await _connectProfile(device, uuid);
+        if (await _waitForBlueZConnection(device)) return;
+        lastError = StateError('profile $uuid did not establish a connection');
+        lastStackTrace = StackTrace.current;
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+      }
+    }
+
+    Error.throwWithStackTrace(
+      lastError ?? StateError('the connection did not complete'),
+      lastStackTrace ?? StackTrace.current,
+    );
+  }
+
+  Future<void> _connectProfile(BlueZDevice device, String uuid) async {
+    final client = await _profileClient();
+    final dbusDevice = client.devices
+        .where((candidate) => candidate.address == device.address)
+        .firstOrNull;
+    if (dbusDevice == null) {
+      throw StateError('device is unavailable over DBus');
+    }
+    try {
+      await dbusDevice.connectProfile(dbus_bluez.BlueZUUID.fromString(uuid));
+    } on dbus_bluez.BlueZAlreadyConnectedException {
+      return;
+    }
+  }
+
+  Future<dbus_bluez.BlueZClient> _profileClient() =>
+      _profileClientInitialization ??= _connectProfileClient();
+
+  Future<dbus_bluez.BlueZClient> _connectProfileClient() async {
     final client = dbus_bluez.BlueZClient();
     try {
       await client.connect();
@@ -780,7 +803,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       return client;
     } catch (_) {
       await client.close();
-      _hfpClientInitialization = null;
+      _profileClientInitialization = null;
       rethrow;
     }
   }
@@ -863,9 +886,11 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
     _adapterChangedSub?.cancel();
     if (_agentRegistered) _client.unregisterAgent();
     unawaited(_client.close());
-    final hfpClient = _hfpClientInitialization;
-    if (hfpClient != null) {
-      unawaited(hfpClient.then((client) => client.close()).catchError((_) {}));
+    final profileClient = _profileClientInitialization;
+    if (profileClient != null) {
+      unawaited(
+        profileClient.then((client) => client.close()).catchError((_) {}),
+      );
     }
   }
 }
