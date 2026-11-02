@@ -1,67 +1,111 @@
-import 'package:dbus/dbus.dart';
+import 'dart:async';
+
+import 'package:bluez_native/bluez_native.dart';
 import 'package:flutter_ics_homescreen/data/data_providers/bluetooth_notifier.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _RecordingBus implements DBusClient {
-  String? destination;
-  DBusObjectPath? path;
-  String? interface;
-  String? method;
-  List<DBusValue> values = const [];
-  String? errorName;
+class _ProfileDevice implements BlueZDevice {
+  _ProfileDevice({
+    required List<String> uuids,
+    this.failProfiles = const {},
+    this.alreadyConnectedProfiles = const {},
+  }) : _uuids = uuids.map(BlueZUUID.new).toList();
+
+  final List<BlueZUUID> _uuids;
+  final Set<String> failProfiles;
+  final Set<String> alreadyConnectedProfiles;
+  final connectedProfiles = <String>[];
+  final _properties = StreamController<List<String>>.broadcast();
+  bool generalConnectCalled = false;
+  @override
+  bool connected = false;
 
   @override
-  Future<DBusMethodSuccessResponse> callMethod({
-    String? destination,
-    required DBusObjectPath path,
-    String? interface,
-    required String name,
-    Iterable<DBusValue> values = const [],
-    DBusSignature? replySignature,
-    bool noReplyExpected = false,
-    bool noAutoStart = false,
-    bool allowInteractiveAuthorization = false,
-  }) async {
-    this.destination = destination;
-    this.path = path;
-    this.interface = interface;
-    method = name;
-    this.values = values.toList();
-    if (errorName case final name?) {
-      throw DBusMethodResponseException(DBusMethodErrorResponse(name));
-    }
-    return DBusMethodSuccessResponse();
+  List<BlueZUUID> get uuids => _uuids;
+
+  @override
+  Stream<List<String>> get propertiesChanged => _properties.stream;
+
+  @override
+  Future<void> connect() async {
+    generalConnectCalled = true;
+    connected = true;
+    _properties.add(const ['Connected']);
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  Future<void> connectProfile(BlueZUUID uuid) async {
+    connectedProfiles.add(uuid.value);
+    if (alreadyConnectedProfiles.contains(uuid.value)) {
+      throw const BlueZOperationException(
+        'Already connected',
+        name: 'org.bluez.Error.AlreadyConnected',
+      );
+    }
+    if (failProfiles.contains(uuid.value)) {
+      throw const BlueZOperationException(
+        'Profile unavailable',
+        name: 'org.bluez.Error.NotAvailable',
+      );
+    }
+    connected = true;
+    _properties.add(const ['Connected']);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError(
+    'Unexpected Bluetooth operation: ${invocation.memberName}',
+  );
 }
 
 void main() {
+  test('connects a media profile without requiring HFP', () async {
+    final device = _ProfileDevice(
+      uuids: [bluetoothA2dpSourceUuid, bluetoothHfpAudioGatewayUuid],
+    );
+
+    await connectBlueZDeviceWithoutRequiredHfp(device);
+
+    expect(device.connected, isTrue);
+    expect(device.generalConnectCalled, isFalse);
+    expect(device.connectedProfiles, [bluetoothA2dpSourceUuid]);
+  });
+
+  test('tries AVRCP when A2DP is unavailable', () async {
+    final device = _ProfileDevice(
+      uuids: [bluetoothA2dpSourceUuid, bluetoothAvrcpUuid],
+      failProfiles: {bluetoothA2dpSourceUuid},
+    );
+
+    await connectBlueZDeviceWithoutRequiredHfp(device);
+
+    expect(device.connected, isTrue);
+    expect(device.connectedProfiles, [
+      bluetoothA2dpSourceUuid,
+      bluetoothAvrcpUuid,
+    ]);
+  });
+
   test(
-    'ConnectProfile targets the selected BlueZ device and HFP UUID',
+    'falls back to the general connection without a media profile',
     () async {
-      final bus = _RecordingBus();
+      final device = _ProfileDevice(uuids: [bluetoothHfpAudioGatewayUuid]);
 
-      await connectBlueZProfile(
-        bus,
-        '/org/bluez/hci0/dev_AA_BB',
-        bluetoothHfpAudioGatewayUuid,
-      );
+      await connectBlueZDeviceWithoutRequiredHfp(device);
 
-      expect(bus.destination, 'org.bluez');
-      expect(bus.path?.value, '/org/bluez/hci0/dev_AA_BB');
-      expect(bus.interface, 'org.bluez.Device1');
-      expect(bus.method, 'ConnectProfile');
-      expect(bus.values.single, const DBusString(bluetoothHfpAudioGatewayUuid));
+      expect(device.connected, isTrue);
+      expect(device.generalConnectCalled, isTrue);
     },
   );
 
-  test('an already connected HFP profile is successful', () async {
-    final bus = _RecordingBus()..errorName = 'org.bluez.Error.AlreadyConnected';
+  test('an already connected profile is successful', () async {
+    final device = _ProfileDevice(
+      uuids: [bluetoothHfpAudioGatewayUuid],
+      alreadyConnectedProfiles: {bluetoothHfpAudioGatewayUuid},
+    );
 
     await expectLater(
-      connectBlueZProfile(bus, '/device', bluetoothHfpAudioGatewayUuid),
+      connectBlueZProfile(device, bluetoothHfpAudioGatewayUuid),
       completes,
     );
   });
