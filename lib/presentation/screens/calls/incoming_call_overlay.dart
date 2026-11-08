@@ -77,30 +77,42 @@ class IncomingCallOverlay extends ConsumerWidget {
                             onPressed: call.busy
                                 ? null
                                 : call.hasWaitingCall
-                                ? notifier.holdAndAnswer
-                                : notifier.acceptCall,
+                                    ? notifier.holdAndAnswer
+                                    : notifier.acceptCall,
                           ),
                         ],
                       ),
                     ),
-                    if (call.hasWaitingCall)
-                      Wrap(
-                        spacing: 16,
-                        children: [
-                          TextButton(
-                            onPressed: call.busy
-                                ? null
-                                : notifier.holdAndAnswer,
-                            child: const Text('Hold & answer'),
+                    if (call.hasWaitingCall) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: compact ? double.infinity : 320,
+                        child: OutlinedButton.icon(
+                          key: const ValueKey('incoming-end-other-answer'),
+                          onPressed:
+                              call.busy ? null : notifier.releaseAndAnswer,
+                          icon: const Icon(Icons.phone_forwarded_rounded),
+                          label: const Text('Answer and end other call'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(56),
+                            foregroundColor:
+                                AGLDemoColors.redProgressStrokeColor,
+                            backgroundColor: AGLDemoColors
+                                .redProgressStrokeColor
+                                .withValues(alpha: 0.12),
+                            side: BorderSide(
+                              color: call.busy
+                                  ? AGLDemoColors.redProgressStrokeColor
+                                      .withValues(alpha: 0.3)
+                                  : AGLDemoColors.redProgressStrokeColor,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
                           ),
-                          TextButton(
-                            onPressed: call.busy
-                                ? null
-                                : notifier.releaseAndAnswer,
-                            child: const Text('End & answer'),
-                          ),
-                        ],
+                        ),
                       ),
+                    ],
                     if (call.error != null)
                       Text(
                         call.error!,
@@ -128,9 +140,8 @@ class _CallerDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: compact
-          ? CrossAxisAlignment.center
-          : CrossAxisAlignment.start,
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
         Text(
           call.name.isEmpty ? 'Unknown caller' : call.name,
@@ -194,7 +205,7 @@ class _NotifierAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '$label call',
+      label: label.replaceAll('\n', ' '),
       child: InkWell(
         key: ValueKey('incoming-${label.toLowerCase()}'),
         onTap: onPressed,
@@ -202,22 +213,40 @@ class _NotifierAction extends StatelessWidget {
         child: SizedBox(
           width: compact ? 72 : 112,
           height: 88,
-          child: Center(
-            child: Container(
-              width: compact ? 54 : 64,
-              height: compact ? 54 : 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: onPressed == null ? color.withValues(alpha: 0.3) : color,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: compact ? 50 : 58,
+                height: compact ? 50 : 58,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color:
+                      onPressed == null ? color.withValues(alpha: 0.3) : color,
+                ),
+                child: Icon(
+                  icon,
+                  size: compact ? 23 : 27,
+                  color: darkForeground
+                      ? AGLDemoColors.backgroundInsetColor
+                      : Colors.white,
+                ),
               ),
-              child: Icon(
-                icon,
-                size: compact ? 25 : 30,
-                color: darkForeground
-                    ? AGLDemoColors.backgroundInsetColor
-                    : Colors.white,
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.fade,
+                style: TextStyle(
+                  height: 1.05,
+                  fontSize: compact ? 10 : 12,
+                  color: onPressed == null
+                      ? AGLDemoColors.periwinkleColor.withValues(alpha: 0.35)
+                      : AGLDemoColors.periwinkleColor,
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
