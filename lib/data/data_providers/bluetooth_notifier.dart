@@ -10,13 +10,20 @@ import 'package:flutter_ics_homescreen/export.dart';
 enum BluetoothOperation { connecting, disconnecting, removing }
 
 const maxPairedBluetoothDevices = 10;
+const bluetoothA2dpSourceUuid = '0000110a-0000-1000-8000-00805f9b34fb';
+const bluetoothAvrcpUuid = '0000110e-0000-1000-8000-00805f9b34fb';
+const bluetoothHfpAudioGatewayUuid = '0000111f-0000-1000-8000-00805f9b34fb';
+const bluetoothPbapPhonebookServerUuid =
+    '0000112f-0000-1000-8000-00805f9b34fb';
+const bluetoothMapMessageAccessServerUuid =
+    '00001132-0000-1000-8000-00805f9b34fb';
 
 const bluetoothSupportedProfileUuids = <String>[
-  '0000110a-0000-1000-8000-00805f9b34fb', // A2DP source
-  '0000110e-0000-1000-8000-00805f9b34fb', // AVRCP
-  '0000111f-0000-1000-8000-00805f9b34fb', // HFP audio gateway
-  '0000112f-0000-1000-8000-00805f9b34fb', // PBAP phonebook server
-  '00001132-0000-1000-8000-00805f9b34fb', // MAP message access server
+  bluetoothA2dpSourceUuid,
+  bluetoothAvrcpUuid,
+  bluetoothHfpAudioGatewayUuid,
+  bluetoothPbapPhonebookServerUuid,
+  bluetoothMapMessageAccessServerUuid,
 ];
 
 const bluetoothSmartphoneClassMask = 0x1ffc;
@@ -36,6 +43,53 @@ bool bluetoothDeviceIsSupported(BlueZDevice device) =>
     bluetoothDeviceSupportsMediaProfile(device) ||
     (device.deviceClass & bluetoothSmartphoneClassMask) ==
         bluetoothSmartphoneClass;
+
+Future<void> connectBlueZProfile(BlueZDevice device, String uuid) async {
+  try {
+    await device.connectProfile(BlueZUUID(uuid));
+  } on BlueZOperationException catch (error) {
+    if (error.name != 'org.bluez.Error.AlreadyConnected') rethrow;
+  }
+}
+
+Future<void> connectBlueZDeviceWithoutRequiredHfp(BlueZDevice device) async {
+  const baseProfiles = [
+    bluetoothA2dpSourceUuid,
+    bluetoothAvrcpUuid,
+  ];
+
+  Object? lastError;
+  StackTrace? lastStackTrace;
+  for (final uuid in baseProfiles) {
+    try {
+      await connectBlueZProfile(device, uuid);
+      if (await _waitForBlueZConnection(device)) return;
+      lastError = StateError('profile $uuid did not establish a connection');
+      lastStackTrace = StackTrace.current;
+    } catch (error, stackTrace) {
+      lastError = error;
+      lastStackTrace = stackTrace;
+    }
+  }
+
+  Error.throwWithStackTrace(
+    lastError ?? StateError('the connection did not complete'),
+    lastStackTrace ?? StackTrace.current,
+  );
+}
+
+Future<bool> _waitForBlueZConnection(BlueZDevice device) async {
+  if (device.connected) return true;
+  try {
+    await device.propertiesChanged
+        .where((_) => device.connected)
+        .first
+        .timeout(const Duration(seconds: 10));
+  } on TimeoutException {
+    // The final property check below remains authoritative.
+  }
+  return device.connected;
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -260,6 +314,13 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
           _client.agentRespond(request.requestId, accepted: true);
           return;
         }
+        if (device.paired &&
+            device.trusted &&
+            bluetoothDeviceIsSupported(device) &&
+            _connectedDeviceExcept(device) == null) {
+          _client.agentRespond(request.requestId, accepted: true);
+          return;
+        }
         if (!_isOnBluetoothPage) {
           // Device connected from outside AGL (e.g. from the phone's BT
           // settings) while the BT page is not open — reject the service.
@@ -314,11 +375,11 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
         !wasConnected &&
         state.pairingRequest == null &&
         state.busyAddress != device.address) {
-      if (!_isOnBluetoothPage) {
-        // Connection was not initiated from AGL's BT page — disconnect it
-        // silently rather than showing a switch dialog or allowing it.
+      if (!device.paired ||
+          !device.trusted ||
+          !bluetoothDeviceIsSupported(device)) {
         debugPrint(
-          'Bluetooth: Disconnecting external connection from ${device.address} (not on BT page)',
+          'Bluetooth: Disconnecting untrusted external connection from ${device.address}',
         );
         unawaited(_rejectExternalConnection(device));
         return;
@@ -349,6 +410,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       for (final device in connected.skip(1)) {
         await _disconnectDevice(device);
       }
+      await _ensureHandsFreeProfile(active);
       await _applyDeviceBlocks(active);
       _publishDevices();
     } catch (e) {
@@ -527,11 +589,9 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
           (state) => state.copyWith(clearDisconnectingAddress: true),
         );
       }
-      if (!device.connected) await device.connect();
-      if (!device.connected) {
-        throw StateError('the connection did not complete');
-      }
+      if (!device.connected) await connectBlueZDeviceWithoutRequiredHfp(device);
       _connectedAddresses.add(device.address);
+      await _ensureHandsFreeProfile(device);
       await _applyDeviceBlocks(device);
       _publishDevices();
       return true;
@@ -542,7 +602,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       if (current != null && !current.connected) {
         try {
           await _setDeviceBlocked(current, false);
-          await current.connect();
+          await connectBlueZDeviceWithoutRequiredHfp(current);
           if (current.connected) await _applyDeviceBlocks(current);
         } catch (rollbackError) {
           debugPrint(
@@ -600,6 +660,7 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
       if (connected == null) {
         await _unblockAllDevices();
       } else {
+        await _ensureHandsFreeProfile(connected);
         await _applyDeviceBlocks(connected);
       }
       _publishDevices();
@@ -708,6 +769,19 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
     }
   }
 
+  Future<void> _ensureHandsFreeProfile(BlueZDevice device) async {
+    if (!device.uuids.any(
+      (uuid) => uuid.value.toLowerCase() == bluetoothHfpAudioGatewayUuid,
+    )) {
+      return;
+    }
+    try {
+      await connectBlueZProfile(device, bluetoothHfpAudioGatewayUuid);
+    } catch (error) {
+      _reportError('Unable to connect HFP for ${device.address}: $error');
+    }
+  }
+
   Future<void> _cleanupFailedPairing(
     BlueZDevice? device, {
     bool isAgentCancel = false,
@@ -753,7 +827,6 @@ class BluetoothNotifier extends Notifier<BluetoothState> {
   void _publishDevices() {
     if (_disposed) return;
     _publishConnectionSignal();
-    if (!_isOnBluetoothPage) return;
 
     // Some smartphones do not advertise their media UUIDs before pairing.
     // Keep unrelated devices out of the UI using profiles or device class.
